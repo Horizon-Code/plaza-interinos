@@ -11,9 +11,12 @@ RUN npm install
 FROM base AS build
 COPY . .
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/core/node_modules ./packages/core/node_modules
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 RUN npm run build -w @plazainterinos/core \
  && npx prisma generate --schema apps/api/prisma/schema.prisma \
- && npm run build -w @tuplaza/api
+ && npm run build -w @plazainterinos/api
+RUN test -f apps/api/dist/src/main.js || (echo "ERROR: dist/src/main.js no se genero" && exit 1)
 
 FROM base AS run
 ENV NODE_ENV=production
@@ -25,4 +28,4 @@ COPY --from=build /app/apps/api/package.json ./apps/api/
 COPY --from=build /app/apps/api/prisma ./apps/api/prisma
 WORKDIR /app/apps/api
 EXPOSE 3000
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]

@@ -38,7 +38,7 @@ export class ConvocatoriaService {
       ).length
     };
     const detectedConditions = buildDetectedConditions(
-      rows.map(r => ({ requirements: r.requirements as VacancyRequirement[] }))
+      rows.map((r: any) => ({ requirements: r.requirements as VacancyRequirement[] }))
     );
     return { convocatoriaId: convocatoria.id, summary, detectedConditions };
   }
@@ -51,7 +51,7 @@ export class ConvocatoriaService {
     });
     if (!rows.length) throw new BadRequestException('La convocatoria no existe o no tiene vacantes.');
     return buildDetectedConditions(
-      rows.map(r => ({ requirements: r.requirements as unknown as VacancyRequirement[] }))
+      rows.map((r: any) => ({ requirements: r.requirements as unknown as VacancyRequirement[] }))
     );
   }
 

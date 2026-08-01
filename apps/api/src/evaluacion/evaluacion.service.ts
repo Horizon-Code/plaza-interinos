@@ -65,7 +65,7 @@ export class EvaluacionService {
 
   private async cargarVacantes(convocatoriaId: string): Promise<Vacancy[]> {
     const rows = await this.prisma.vacancy.findMany({ where: { convocatoriaId } });
-    return rows.map(r => ({
+    return rows.map((r: any) => ({
       id: r.id,
       source: 'db',
       community: 'aragon',
@@ -135,7 +135,7 @@ export class EvaluacionService {
 
   async comprobar(convocatoriaId: string, selectedIds: string[]) {
     const rows = await this.prisma.evaluation.findMany({ where: { convocatoriaId } });
-    const evaluations: VacancyEvaluation[] = rows.map(r => ({
+    const evaluations: VacancyEvaluation[] = rows.map((r: any) => ({
       vacancyId: r.vacancyId,
       included: r.included,
       score: r.score,

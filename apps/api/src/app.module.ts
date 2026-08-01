@@ -9,6 +9,7 @@ import { PagosModule } from './pagos/pagos.module';
 import { GeoModule } from './geo/geo.module';
 import { FuelModule } from './fuel/fuel.module';
 import { PdfProxyModule } from './pdfproxy/pdfproxy.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { PdfProxyModule } from './pdfproxy/pdfproxy.module';
     GeoModule,
     FuelModule,
     PdfProxyModule
-  ]
+  ],
+  controllers: [HealthController]
 })
 export class AppModule {}

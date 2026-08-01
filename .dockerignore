@@ -1,0 +1,13 @@
+# flyctl launch added from .gitignore
+**/node_modules
+**/dist
+**/.angular
+**/out-tsc
+**/*.log
+**/.env
+**/.DS_Store
+**/__pycache__
+**/apps/api/prisma/migrations/dev.db
+**/.claude/settings.local.json
+**/apps/web/public/pdf.worker.min.mjs
+fly.toml
