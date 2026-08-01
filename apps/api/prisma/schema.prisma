@@ -1,0 +1,155 @@
+// TuPlaza — esquema de datos (PostgreSQL vía Prisma)
+// Genera tipos TypeScript automáticos consumidos por NestJS.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+
+  profiles      Profile[]
+  convocatorias Convocatoria[]
+  payments      Payment[]
+}
+
+model Profile {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name String @default("Mi perfil")
+
+  homeAddress      String?
+  homeMunicipality String?
+  homeLat          Float?
+  homeLng          Float?
+
+  maxDistanceKm    Float?
+  maxTravelMinutes Int?
+
+  // Modo del límite base ('minutes' | 'km') y datos del coche
+  travelMode        String  @default("minutes")
+  carFuelType       String?
+  carConsumption    Float?
+  fuelPriceOverride Float?
+
+  acceptsPartialWorkload Boolean @default(true)
+  minimumWorkload        Float?
+  acceptsVoluntary       Boolean @default(true)
+  acceptsAfternoon       Boolean @default(false)
+  acceptsItinerant       Boolean @default(false)
+  acceptsBilingual       Boolean @default(false)
+  acceptsLongTerm        Boolean @default(true)
+
+  // Listas serializadas como JSON (arrays de strings / objetos)
+  specialties            Json
+  acceptedLanguages      Json @default("[]")
+  excludedPrograms       Json @default("[]")
+  excludedTags           Json @default("[]")
+  preferredMunicipalities Json @default("[]")
+  excludedMunicipalities Json @default("[]")
+  preferredCenters       Json @default("[]")
+  excludedCenters        Json @default("[]")
+  rankingWeights         Json?
+  workloadTravelTiers    Json @default("[]")
+  travelWorkloadBands    Json @default("[]")
+  conditionAccepts       Json @default("{}")
+  conditionTravelLimits  Json @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Convocatoria {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  community   String   @default("aragon")
+  sourceName  String?
+  parserVersion String @default("aragon_v1")
+  createdAt   DateTime @default(now())
+
+  vacancies   Vacancy[]
+  evaluations Evaluation[]
+}
+
+model Vacancy {
+  id             String @id @default(cuid())
+  convocatoriaId String
+  convocatoria   Convocatoria @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
+
+  externalId    String?
+  province      String?
+  municipality  String?
+  bodyCode      String?
+  specialtyCode String?
+  specialtyName String?
+  centerCode    String?
+  centerName    String?
+  centerAddress String?
+
+  workload      Float?
+  scheduleType  String?
+  voluntary     Boolean @default(false)
+  durationType  String?
+
+  additionalInfoRaw String?
+  requirements      Json   @default("[]")
+  tags              Json   @default("[]")
+
+  latitude   Float?
+  longitude  Float?
+  sourcePage Int?
+  sourceRow  Int?
+
+  evaluations Evaluation[]
+}
+
+model Evaluation {
+  id             String @id @default(cuid())
+  convocatoriaId String
+  convocatoria   Convocatoria @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
+  vacancyId      String
+  vacancy        Vacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
+
+  included             Boolean
+  score                Float   @default(0)
+  distanceKm           Float?
+  travelMinutes        Int?
+  dailyCostEur         Float?
+  requiresManualReview Boolean @default(false)
+
+  hardExclusionReasons Json @default("[]")
+  warnings             Json @default("[]")
+  positiveReasons      Json @default("[]")
+
+  selected  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Pago por campaña (no suscripción): el dolor es estacional.
+  concept   String   @default("campana")
+  amountCents Int
+  currency  String   @default("EUR")
+  status    String   @default("pending") // pending | paid | refunded
+  provider  String   @default("stripe")
+  providerRef String?
+
+  createdAt DateTime @default(now())
+}

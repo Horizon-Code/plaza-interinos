@@ -1,0 +1,16 @@
+{
+  "name": "plazainterinos",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Asistente de selección de vacantes docentes para interinos. Elige destino con datos, no con agotamiento.",
+  "workspaces": ["packages/core", "apps/api", "apps/web"],
+  "scripts": {
+    "build:core": "npm run build -w @plazainterinos/core",
+    "build:catalog": "npm run build:core && node tools/build-catalog/index.mjs",
+    "test": "npm run test -w @plazainterinos/core",
+    "api": "npm run dev -w @plazainterinos/api",
+    "web": "npm run start -w @plazainterinos/web",
+    "dev": "npm run build:core && concurrently -n api,web -c green,cyan \"npm run api\" \"npm run web\""
+  },
+  "devDependencies": { "concurrently": "^9.0.0", "pdfjs-dist": "^4.10.38" }
+}

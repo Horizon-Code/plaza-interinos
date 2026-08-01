@@ -1,0 +1,21 @@
+# Backend NestJS en Fly.io. Escala a cero entre campañas (ahorro estacional).
+app = "plazainterinos-api"
+primary_region = "mad"   # Madrid, cerca de los usuarios
+
+[build]
+  dockerfile = "../apps/api/Dockerfile"
+
+[env]
+  PORT = "3000"
+  CORS_ORIGIN = "https://plazainterinos.es"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"     # se apaga sin tráfico
+  auto_start_machines = true      # arranca al primer request
+  min_machines_running = 0        # escala a cero: nueve meses muertos ~= 0 €
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "PlazaInterinos — Rellenar en PADDOC",
+  "version": "0.1.0",
+  "description": "Rellena tus plazas en PADDOC dentro de tu propia sesión. Tus credenciales nunca salen de tu navegador.",
+  "permissions": ["scripting"],
+  "host_permissions": [
+    "https://paddoc.aragon.es/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["http://localhost:4200/*", "https://tuplaza.es/*"],
+      "js": ["bridge.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://paddoc.aragon.es/*"],
+      "js": ["paddoc.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
