@@ -81,22 +81,39 @@ export class EstadoService {
   private token: string | null = null;
   private convocatoriaId: string | null = null;
 
+  private apiUrl(path: string): string {
+    const base =
+      location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+        ? '/api'
+        : 'https://plazainterinos-api.fly.dev/api';
+    const normalizedPath = path.startsWith('/api/') ? path.slice(4) : path;
+    return `${base}${normalizedPath}`;
+  }
+
+  private async leerRespuesta(response: Response): Promise<any> {
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(data?.message ?? data?.error ?? `Error ${response.status}`);
+    }
+    return data;
+  }
+
   private async asegurarSesion(): Promise<void> {
     if (this.token) return;
     const email = `demo+${Date.now()}@plazainterinos.es`;
     const body = { email, password: 'demo12345', name: 'Demo' };
-    const r = await fetch('/api/auth/register', {
+    const r = await fetch(this.apiUrl('/auth/register'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body)
     });
-    const data = await r.json();
+    const data = await this.leerRespuesta(r);
     this.token = data.token;
   }
 
   private async req<T>(url: string, body?: unknown): Promise<T> {
     await this.asegurarSesion();
-    const response = await fetch(url, {
+    const response = await fetch(this.apiUrl(url), {
       method: body === undefined ? 'GET' : 'POST',
       headers: {
         'content-type': 'application/json',
@@ -104,9 +121,7 @@ export class EstadoService {
       },
       body: body === undefined ? undefined : JSON.stringify(body)
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.message ?? data.error ?? 'Error inesperado');
-    return data as T;
+    return this.leerRespuesta(response) as Promise<T>;
   }
 
   async importar(vacancies: unknown[]): Promise<void> {
@@ -126,7 +141,7 @@ export class EstadoService {
   /** Descarga un PDF por URL a través del proxy de la API. */
   async descargarPdf(url: string): Promise<ArrayBuffer> {
     await this.asegurarSesion();
-    const response = await fetch('/api/pdf/fetch', {
+    const response = await fetch(this.apiUrl('/pdf/fetch'), {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${this.token}` },
       body: JSON.stringify({ url })
