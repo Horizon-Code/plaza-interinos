@@ -70,6 +70,7 @@ export class EstadoService {
   readonly seleccion = signal<Set<string>>(new Set());
   readonly perfilGuardado = signal(false);
   readonly error = signal('');
+  readonly accesoAutorizado = signal(localStorage.getItem('pi_access_code') !== null);
 
   /** Vacantes leídas del PDF (antes de filtrar por aspirante). */
   readonly vacantesParseadas = signal<VacanteImportada[]>([]);
@@ -80,6 +81,7 @@ export class EstadoService {
 
   private token: string | null = null;
   private convocatoriaId: string | null = null;
+  private accessCode: string | null = localStorage.getItem('pi_access_code');
 
   private apiUrl(path: string): string {
     const base =
@@ -101,7 +103,7 @@ export class EstadoService {
   private async asegurarSesion(): Promise<void> {
     if (this.token) return;
     const email = `demo+${Date.now()}@plazainterinos.es`;
-    const body = { email, password: 'demo12345', name: 'Demo' };
+    const body = { email, password: 'demo12345', name: 'Demo', accessCode: this.accessCode };
     const r = await fetch(this.apiUrl('/auth/register'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -109,6 +111,15 @@ export class EstadoService {
     });
     const data = await this.leerRespuesta(r);
     this.token = data.token;
+  }
+
+  async desbloquear(accessCode: string): Promise<void> {
+    this.error.set('');
+    this.token = null;
+    this.accessCode = accessCode.trim();
+    await this.asegurarSesion();
+    localStorage.setItem('pi_access_code', this.accessCode);
+    this.accesoAutorizado.set(true);
   }
 
   private async req<T>(url: string, body?: unknown): Promise<T> {

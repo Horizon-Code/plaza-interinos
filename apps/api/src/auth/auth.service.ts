@@ -12,6 +12,11 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
+    const requiredAccessCode = process.env.REGISTRATION_ACCESS_CODE;
+    if (requiredAccessCode && dto.accessCode !== requiredAccessCode) {
+      throw new UnauthorizedException('Clave de acceso incorrecta.');
+    }
+
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('Ese correo ya está registrado.');
     const password = await bcrypt.hash(dto.password, 10);
