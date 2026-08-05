@@ -5,16 +5,22 @@ import { provideRouter, RouterLink, RouterLinkActive, RouterOutlet, Routes } fro
 import { provideZonelessChangeDetection, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { ImportarComponent } from './app/importar.component';
 import { PerfilComponent } from './app/perfil.component';
+import { FiltrarComponent } from './app/filtrar.component';
+import { OrdenarComponent } from './app/ordenar.component';
 import { ResultadoComponent } from './app/resultado.component';
 import { ComprobarComponent } from './app/comprobar.component';
 import { ExtensionComponent } from './app/extension.component';
 import { ExtensionService } from './app/extension.service';
 import { EstadoService } from './app/estado.service';
+import { ConfiguracionService } from './app/configuracion.service';
+import { PasosComponent } from './app/pasos.component';
 
 const routes: Routes = [
   { path: '', redirectTo: 'importar', pathMatch: 'full' },
   { path: 'importar', component: ImportarComponent },
   { path: 'perfil', component: PerfilComponent },
+  { path: 'filtrar', component: FiltrarComponent },
+  { path: 'ordenar', component: OrdenarComponent },
   { path: 'resultado', component: ResultadoComponent },
   { path: 'comprobar', component: ComprobarComponent },
   { path: 'extension', component: ExtensionComponent }
@@ -23,7 +29,7 @@ const routes: Routes = [
 @Component({
   selector: 'pi-root',
   standalone: true,
-  imports: [FormsModule, RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [FormsModule, RouterOutlet, RouterLink, PasosComponent],
   template: `
     @if (!estado.accesoAutorizado()) {
       <main class="acceso">
@@ -61,13 +67,14 @@ const routes: Routes = [
             @default { <a routerLink="/extension" class="conn off"><span class="punto"></span> Conectar extensión</a> }
           }
         </div>
-        <nav class="pasos">
-          <a routerLink="/importar" routerLinkActive="activo">1 · Convocatoria</a>
-          <a routerLink="/perfil" routerLinkActive="activo">2 · Perfil</a>
-          <a routerLink="/resultado" routerLinkActive="activo">3 · Lista</a>
-          <a routerLink="/comprobar" routerLinkActive="activo">4 · Comprobación</a>
-        </nav>
+        <pi-pasos />
         <router-outlet />
+        <p class="empezar-de-cero">
+          <button type="button" class="secundario" (click)="empezarDeCero()">
+            Empezar de cero
+          </button>
+          <span>Borra el perfil, los filtros y el orden guardados en este navegador.</span>
+        </p>
       </main>
     }
   `
@@ -75,12 +82,19 @@ const routes: Routes = [
 class AppComponent {
   readonly ext = inject(ExtensionService);
   readonly estado = inject(EstadoService);
+  private readonly config = inject(ConfiguracionService);
   readonly cargando = signal(false);
   readonly error = signal('');
   codigo = '';
 
   constructor() {
     this.ext.iniciar();
+  }
+
+  empezarDeCero(): void {
+    if (confirm('¿Descartar el perfil, los filtros y el orden guardados?')) {
+      this.config.empezarDeCero();
+    }
   }
 
   async entrar(): Promise<void> {

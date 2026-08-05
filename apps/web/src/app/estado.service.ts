@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, effect, signal } from '@angular/core';
 import type { CandidateMatch, DetectedCondition, VacanteImportada } from '@plazainterinos/core';
 
 export interface Resumen {
@@ -7,6 +7,15 @@ export interface Resumen {
   languageRequirement: number;
   afternoon: number;
   ambiguous: number;
+  /** Vacantes cuyo centro no está en el catálogo geolocalizado. */
+  sinCoordenadas?: number;
+}
+
+/** Un centro de la convocatoria importada, para poder excluirlo por código. */
+export interface CentroDeConvocatoria {
+  code: string;
+  name: string;
+  municipality: string;
 }
 
 export interface PreciosCombustible {
@@ -41,6 +50,9 @@ export interface VacanteEvaluada {
   requiresManualReview: boolean;
   vacancy: {
     id: string;
+    bodyCode?: string;
+    specialtyCode?: string;
+    centerCode?: string;
     centerName?: string;
     municipality?: string;
     specialtyName?: string;
@@ -62,6 +74,10 @@ export interface Comprobacion {
   selectedNeedsReview: VacanteEvaluada[];
 }
 
+/** Bloque persistido de la convocatoria activa (punto 4). */
+const CLAVE_CONVOCATORIA = 'pi_convocatoria';
+const VERSION_CONVOCATORIA = 1;
+
 @Injectable({ providedIn: 'root' })
 export class EstadoService {
   readonly resumen = signal<Resumen | null>(null);
@@ -72,16 +88,68 @@ export class EstadoService {
   readonly error = signal('');
   readonly accesoAutorizado = signal(localStorage.getItem('pi_access_code') !== null);
 
-  /** Vacantes leídas del PDF (antes de filtrar por aspirante). */
+  /** Vacantes leídas del PDF (antes de filtrar por aspirante). Solo en memoria. */
   readonly vacantesParseadas = signal<VacanteImportada[]>([]);
   /** Cuerpos/especialidades del aspirante (del PDF de candidatos o manual). */
   readonly especialidadesUsuario = signal<CandidateMatch[]>([]);
-  /** Condiciones detectadas en la convocatoria importada (para el perfil). */
+  /** Condiciones detectadas en la convocatoria importada (para filtrar). */
   readonly condicionesDetectadas = signal<DetectedCondition[]>([]);
+  /** Localidades presentes en la convocatoria, para el desplegable de filtros. */
+  readonly municipiosDeConvocatoria = signal<string[]>([]);
+  /** Centros presentes en la convocatoria, únicos por código. */
+  readonly centrosDeConvocatoria = signal<CentroDeConvocatoria[]>([]);
+
+  readonly hayConvocatoria = computed(() => this.resumen() !== null);
 
   private token: string | null = null;
   private convocatoriaId: string | null = null;
   private accessCode: string | null = localStorage.getItem('pi_access_code');
+
+  constructor() {
+    this.rehidratarConvocatoria();
+    effect(() => this.persistirConvocatoria());
+  }
+
+  /**
+   * El catálogo de la convocatoria (localidades y centros) sí se guarda, porque
+   * sin él la pantalla de filtros se queda sin opciones tras un refresco. Las
+   * 4600 vacantes en crudo no: no caben en localStorage y ya están en la API.
+   */
+  private persistirConvocatoria(): void {
+    const data = {
+      convocatoriaId: this.convocatoriaId,
+      resumen: this.resumen(),
+      condicionesDetectadas: this.condicionesDetectadas(),
+      especialidadesUsuario: this.especialidadesUsuario(),
+      municipios: this.municipiosDeConvocatoria(),
+      centros: this.centrosDeConvocatoria()
+    };
+    try {
+      localStorage.setItem(
+        CLAVE_CONVOCATORIA,
+        JSON.stringify({ version: VERSION_CONVOCATORIA, data })
+      );
+    } catch {
+      // Sin persistencia la app sigue funcionando; solo se pierde al refrescar.
+    }
+  }
+
+  private rehidratarConvocatoria(): void {
+    let guardado: { version: number; data: any } | null = null;
+    try {
+      guardado = JSON.parse(localStorage.getItem(CLAVE_CONVOCATORIA) ?? 'null');
+    } catch {
+      guardado = null;
+    }
+    if (!guardado || guardado.version !== VERSION_CONVOCATORIA) return;
+    const d = guardado.data ?? {};
+    this.convocatoriaId = d.convocatoriaId ?? null;
+    if (d.resumen) this.resumen.set(d.resumen);
+    if (d.condicionesDetectadas) this.condicionesDetectadas.set(d.condicionesDetectadas);
+    if (d.especialidadesUsuario) this.especialidadesUsuario.set(d.especialidadesUsuario);
+    if (d.municipios) this.municipiosDeConvocatoria.set(d.municipios);
+    if (d.centros) this.centrosDeConvocatoria.set(d.centros);
+  }
 
   private apiUrl(path: string): string {
     const base =
@@ -100,17 +168,41 @@ export class EstadoService {
     return data;
   }
 
-  private async asegurarSesion(): Promise<void> {
-    if (this.token) return;
-    const email = `demo+${Date.now()}@plazainterinos.es`;
-    const body = { email, password: 'demo12345', name: 'Demo', accessCode: this.accessCode };
-    const r = await fetch(this.apiUrl('/auth/register'), {
+  private async post(url: string, body: unknown): Promise<any> {
+    const r = await fetch(this.apiUrl(url), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body)
     });
-    const data = await this.leerRespuesta(r);
+    return this.leerRespuesta(r);
+  }
+
+  /**
+   * Reutiliza siempre la misma cuenta demo. Registrar una nueva en cada carga
+   * dejaría huérfanas la convocatoria y el perfil guardados: la persistencia
+   * del punto 4 solo vale si al volver eres el mismo usuario.
+   */
+  private async asegurarSesion(): Promise<void> {
+    if (this.token) return;
+    const password = 'demo12345';
+    const guardado = localStorage.getItem('pi_demo_email');
+    if (guardado) {
+      try {
+        this.token = (await this.post('/auth/login', { email: guardado, password })).token;
+        return;
+      } catch {
+        // Cuenta perdida (base reiniciada): se crea una nueva más abajo.
+      }
+    }
+    const email = `demo+${Date.now()}@plazainterinos.es`;
+    const data = await this.post('/auth/register', {
+      email,
+      password,
+      name: 'Demo',
+      accessCode: this.accessCode
+    });
     this.token = data.token;
+    localStorage.setItem('pi_demo_email', email);
   }
 
   async desbloquear(accessCode: string): Promise<void> {
@@ -145,8 +237,29 @@ export class EstadoService {
     this.convocatoriaId = data.convocatoriaId;
     this.resumen.set(data.summary);
     this.condicionesDetectadas.set(data.detectedConditions ?? []);
+    this.catalogarConvocatoria(vacancies as Record<string, string | undefined>[]);
     this.resultado.set(null);
     this.comprobacion.set(null);
+  }
+
+  /** Localidades y centros de la convocatoria, para los desplegables de Filtrar. */
+  private catalogarConvocatoria(vacancies: Record<string, string | undefined>[]): void {
+    const municipios = new Set<string>();
+    const centros = new Map<string, CentroDeConvocatoria>();
+    for (const v of vacancies) {
+      if (v['municipality']) municipios.add(v['municipality']);
+      const code = v['centerCode'];
+      if (code && !centros.has(code)) {
+        centros.set(code, {
+          code,
+          name: v['centerName'] ?? code,
+          municipality: v['municipality'] ?? ''
+        });
+      }
+    }
+    const porNombre = (a: string, b: string) => a.localeCompare(b, 'es');
+    this.municipiosDeConvocatoria.set([...municipios].sort(porNombre));
+    this.centrosDeConvocatoria.set([...centros.values()].sort((a, b) => porNombre(a.name, b.name)));
   }
 
   /** Descarga un PDF por URL a través del proxy de la API. */

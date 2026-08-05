@@ -7,6 +7,7 @@
   "scripts": {
     "build:core": "npm run build -w @plazainterinos/core",
     "build:catalog": "npm run build:core && node tools/build-catalog/index.mjs",
+    "build:centros": "node tools/build-catalog/centros.mjs && npm run build:core",
     "test": "npm run test -w @plazainterinos/core",
     "api": "npm run dev -w @plazainterinos/api",
     "web": "npm run start -w @plazainterinos/web",

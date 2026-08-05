@@ -31,16 +31,21 @@ En WSL, la `DATABASE_URL` usa el socket local: `postgresql://usuario@localhost:5
 
 ```
 packages/core        Dominio en TypeScript puro: modelos, extractor de etiquetas,
-                     motor de reglas con explicación, evaluación, ranking, comprobación,
-                     PARSERS de PDF (vacantes/candidatos) y catálogo de cuerpos/
-                     especialidades. 55 tests (vitest). NO depende de web ni de HTTP.
-apps/api             NestJS. Módulos: auth (JWT), perfil, convocatoria, evaluacion
-                     (usa el core), pagos (Stripe), geo (Nominatim), fuel (precios
-                     oficiales del combustible), pdf (proxy de descarga). Prisma + PostgreSQL.
-apps/web             Angular 22. Flujo: importar (PDF vacantes + candidatos → "Descubrir
-                     vacantes") → perfil dinámico → lista con coste €/día → comprobación.
+                     motor de reglas con explicación, evaluación, ranking, orden en
+                     cascada, comprobación, PARSERS de PDF (vacantes/candidatos) y
+                     catálogos (cuerpos/especialidades y centros geolocalizados).
+                     75 tests (vitest). NO depende de web ni de HTTP.
+apps/api             NestJS. Módulos: auth (JWT), perfil, convocatoria (geolocaliza las
+                     vacantes al importar), evaluacion (usa el core), pagos (Stripe),
+                     geo (Nominatim), fuel (precios oficiales del combustible),
+                     pdf (proxy de descarga). Prisma + PostgreSQL.
+apps/web             Angular 22. Seis pasos: convocatoria → perfil → filtrar → ordenar →
+                     lista (tarjetas o tabla, con coste €/día) → comprobación.
+                     Filtrar y ordenar son opcionales; todo persiste en localStorage.
 apps/extension       Manifest V3. Rellena en el portal dentro de la sesión del usuario.
-tools/build-catalog  Script Node+pdfjs: regenera el catálogo y vuelca fixtures de test.
+tools/build-catalog  Scripts Node: `index.mjs` regenera el catálogo de cuerpos y vuelca
+                     fixtures de test; `centros.mjs` descarga los centros educativos
+                     geolocalizados del WFS de IDEAragón (`npm run build:centros`).
 infra                Despliegue: fly.toml, guía Cloudflare, razonamiento de escalado.
 docs                 PDFs oficiales de referencia (vacantes.pdf, candidatos.pdf).
 ```
@@ -55,22 +60,23 @@ del usuario.
 
 ## Estado
 
-- Núcleo, reglas, ranking, comprobación y **parsers de PDF**: probados (55 tests en verde).
+- Núcleo, reglas, ranking, orden, comprobación y **parsers de PDF**: probados (75 tests en verde).
 - **Parser de vacantes calibrado con el PDF oficial real** (773 págs.): 4603 fichas, 0 errores.
 - **Búsqueda de candidatos** por nombre sobre el PDF real (693 págs.): localiza cuerpos,
   especialidades y orden.
 - Catálogo de cuerpos/especialidades generado del PDF real (7 cuerpos, 143 especialidades).
+- **Centros geolocalizados**: 961 centros de Aragón con coordenadas WGS84, cruzados por
+  el código oficial de 8 dígitos que trae el PDF. Cubre el 97 % de las vacantes reales;
+  el resto (equipos de orientación, sin edificio propio) cae a revisión manual.
+- **Las plazas obligatorias nunca se filtran**: los filtros de usuario (voluntarias,
+  localidades, centros) solo pueden descartar voluntarias. Cubierto por tests.
 - Backend NestJS completo, incluidos geo/fuel/pdf-proxy: probado en vivo.
-- Frontend Angular 22: importar (drag&drop + URL de PDF), perfil dinámico con
-  condiciones detectadas, coste de combustible por vacante. Compila en producción.
+- Frontend Angular 22: seis pasos, vista tabla, orden en cascada y persistencia en
+  localStorage. Compila en producción.
 - E2E completo con los dos PDFs reales verificado de punta a punta.
 
 ## Pendiente (en orden)
 
-1. **Geocodificar los centros de Aragón** (catálogo con lat/lon). Las vacantes reales
-   no traen coordenadas, así que hoy la distancia/coste solo se calcula si el centro
-   tiene lat/lon; sin ellas se muestra el aviso "distancia sin calcular". Esta es la
-   siguiente pieza para que la ordenación por cercanía y el coste €/día sean plenos.
-2. Mapear los endpoints reales del portal para activar la extensión (fase 2).
-3. Pantalla de login real (hoy la web abre sesión demo automática).
-4. Verificar `plazainterinos.es` en la OEPM antes de invertir en marca.
+1. Mapear los endpoints reales del portal para activar la extensión (fase 2).
+2. Pantalla de login real (hoy la web abre sesión demo automática).
+3. Verificar `plazainterinos.es` en la OEPM antes de invertir en marca.

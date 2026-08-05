@@ -30,6 +30,25 @@ function requirementSource(vacancy: Vacancy, code: string): string | undefined {
   return vacancy.requirements.find(r => r.code === code)?.sourceText;
 }
 
+/**
+ * Los filtros de la pantalla "Filtrar" (voluntarias, localidades, centros) solo
+ * pueden descartar plazas voluntarias. Una obligatoria que se cayera de la lista
+ * por un filtro seguiría pudiendo serte adjudicada, y no la habrías visto: el
+ * filtro se degrada a aviso y la plaza sigue dentro.
+ *
+ * Ojo: esto NO afecta a los límites de trayecto del perfil, que no son filtros
+ * de esta pantalla sino los topes que el docente se pone a sí mismo.
+ */
+function soloDescartaVoluntarias(vacancy: Vacancy, exclusion: RuleResult): RuleResult {
+  if (vacancy.voluntary) return exclusion;
+  return {
+    ...exclusion,
+    status: 'warning',
+    reasonCode: `${exclusion.reasonCode}-obligatoria`,
+    message: `${exclusion.message} Al ser obligatoria sigue en tu lista: solo baja en el orden.`
+  };
+}
+
 export class SpecialtyMatchRule implements VacancyRule {
   readonly id = 'specialty-match';
   evaluate(vacancy: Vacancy, profile: UserProfile): RuleResult {
@@ -164,7 +183,10 @@ export class MunicipalityRule implements VacancyRule {
     const muni = (vacancy.municipality ?? '').toLowerCase();
     if (!muni) return warn('municipality-unknown', 'No consta la localidad de la plaza.');
     if (profile.excludedMunicipalities.some(m => m.toLowerCase() === muni)) {
-      return fail('municipality-excluded', `Localidad excluida por tu perfil (${vacancy.municipality}).`);
+      return soloDescartaVoluntarias(
+        vacancy,
+        fail('municipality-excluded', `Localidad excluida por ti (${vacancy.municipality}).`)
+      );
     }
     if (profile.preferredMunicipalities.some(m => m.toLowerCase() === muni)) {
       return pass('municipality-preferred', `Localidad preferida (${vacancy.municipality}).`, true);
@@ -176,12 +198,17 @@ export class MunicipalityRule implements VacancyRule {
 export class CenterRule implements VacancyRule {
   readonly id = 'center';
   evaluate(vacancy: Vacancy, profile: UserProfile): RuleResult {
-    const code = vacancy.centerCode ?? '';
+    // La lista se guarda por código de centro (8 dígitos), que es lo único
+    // estable; el nombre se acepta por compatibilidad con perfiles antiguos.
+    const code = (vacancy.centerCode ?? '').padStart(8, '0');
     const name = (vacancy.centerName ?? '').toLowerCase();
     const inList = (list: string[]) =>
-      list.some(c => c === code || c.toLowerCase() === name);
+      list.some(c => (/^\d+$/.test(c) ? c.padStart(8, '0') === code : c.toLowerCase() === name));
     if (inList(profile.excludedCenters)) {
-      return fail('center-excluded', `Centro excluido por tu perfil (${vacancy.centerName}).`);
+      return soloDescartaVoluntarias(
+        vacancy,
+        fail('center-excluded', `Centro excluido por ti (${vacancy.centerName}).`)
+      );
     }
     if (inList(profile.preferredCenters)) {
       return pass('center-preferred', `Centro favorito (${vacancy.centerName}).`, true);
