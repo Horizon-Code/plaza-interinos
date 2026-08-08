@@ -152,12 +152,8 @@ export class EstadoService {
   }
 
   private apiUrl(path: string): string {
-    const base =
-      location.hostname === 'localhost' || location.hostname === '127.0.0.1'
-        ? '/api'
-        : 'https://plazainterinos-api.fly.dev/api';
     const normalizedPath = path.startsWith('/api/') ? path.slice(4) : path;
-    return `${base}${normalizedPath}`;
+    return `/api${normalizedPath}`;
   }
 
   private async leerRespuesta(response: Response): Promise<any> {
