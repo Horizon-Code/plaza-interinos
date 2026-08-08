@@ -212,6 +212,14 @@ http://localhost:4200/
 
 Asi coincide con `CORS_ORIGIN="http://localhost:4200"`.
 
+En produccion, `/api/*` no se resuelve con `_redirects`. Cloudflare Pages no puede
+usar `_redirects` como proxy hacia un dominio externo de Fly. Para eso se usa la
+Pages Function `functions/api/[[path]].ts`, que reenvia las peticiones a:
+
+```text
+https://plazainterinos-api.fly.dev/api/*
+```
+
 ## Comprobaciones rapidas
 
 Frontend:
@@ -250,9 +258,9 @@ La `DATABASE_URL` apunta al socket local de PostgreSQL, pero no hay servidor esc
 DATABASE_URL="postgresql://plazainterinos:plazainterinos@127.0.0.1:55432/plazainterinos?schema=public"
 ```
 
-### `502 Bad Gateway` en `/api/auth/register`
+### `502 Bad Gateway` o `405 Method Not Allowed` en `/api/auth/register`
 
-Lo devuelve el proxy de Angular cuando no puede conectar con la API. Comprueba:
+En local, un `502` lo devuelve el proxy de Angular cuando no puede conectar con la API. Comprueba:
 
 ```bash
 curl http://localhost:3000/api/health
@@ -260,6 +268,10 @@ curl http://localhost:4200/api/health
 ```
 
 Si el primero funciona y el segundo no, revisa `apps/web/proxy.conf.json` y reinicia `npm run web`.
+
+En produccion, un `405 Method Not Allowed` en `https://plazainterinos.es/api/...`
+suele indicar que Cloudflare Pages esta tratando `/api` como una ruta estatica en
+vez de ejecutarla mediante la Pages Function `functions/api/[[path]].ts`.
 
 ### Docker existe en Windows pero no en WSL
 
@@ -274,4 +286,3 @@ Ruta habitual:
 ### El puerto `5432` no conecta al contenedor correcto
 
 En WSL puede existir otra PostgreSQL o una redireccion distinta en `127.0.0.1:5432`. Publica el contenedor en `55432` y usa esa URL en `DATABASE_URL`.
-
