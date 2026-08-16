@@ -31,32 +31,34 @@ export const PASOS: Paso[] = [
   standalone: true,
   template: `
     <nav class="stepper" aria-label="Pasos">
-      <ol>
-        @for (paso of pasos; track paso.numero) {
-          <li
-            class="paso"
-            [class.completado]="paso.numero < actual()"
-            [class.activo]="paso.numero === actual()"
-            [class.futuro]="paso.numero > actual()"
-          >
-            <button
-              type="button"
-              class="circulo"
-              [disabled]="!accesible(paso.numero)"
-              [attr.aria-current]="paso.numero === actual() ? 'step' : null"
-              [attr.aria-label]="'Paso ' + paso.numero + ': ' + paso.nombre"
-              (click)="ir(paso)"
+      <div class="stepper-caja">
+        <ol>
+          @for (paso of pasos; track paso.numero) {
+            <li
+              class="paso"
+              [class.completado]="paso.numero < actual()"
+              [class.activo]="paso.numero === actual()"
+              [class.futuro]="paso.numero > actual()"
             >
-              @if (paso.numero < actual()) { <span aria-hidden="true">✓</span> }
-              @else { {{ paso.numero }} }
-            </button>
-            @if (paso.opcional) { <span class="opcional">opcional</span> }
-          </li>
-        }
-      </ol>
-      <p class="stepper-texto">
-        Paso {{ actual() }} de {{ pasos.length }} · <strong>{{ nombreActual() }}</strong>
-      </p>
+              <button
+                type="button"
+                class="circulo"
+                [disabled]="!accesible(paso.numero)"
+                [attr.aria-current]="paso.numero === actual() ? 'step' : null"
+                [attr.aria-label]="'Paso ' + paso.numero + ': ' + paso.nombre"
+                (click)="ir(paso)"
+              >
+                @if (paso.numero < actual()) { <span aria-hidden="true">✓</span> }
+                @else { {{ paso.numero }} }
+              </button>
+              <span class="etiqueta">
+                {{ paso.nombre }}
+                @if (paso.opcional) { <span class="opcional">opcional</span> }
+              </span>
+            </li>
+          }
+        </ol>
+      </div>
     </nav>
   `
 })
@@ -71,10 +73,6 @@ export class PasosComponent {
     const ruta = this.url().split('?')[0];
     return PASOS.find(p => ruta.startsWith(p.ruta))?.numero ?? 1;
   });
-  readonly nombreActual = computed(
-    () => PASOS.find(p => p.numero === this.actual())?.nombre ?? ''
-  );
-
   constructor() {
     this.router.events.subscribe(evento => {
       if (evento instanceof NavigationEnd) {

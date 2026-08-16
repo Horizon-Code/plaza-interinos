@@ -60,13 +60,25 @@ button, .btn {
   border-radius: var(--radio);
   padding: 10px 18px;
   cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+              opacity 0.2s ease, box-shadow 0.15s ease, transform 0.08s ease;
 }
 button:hover { background: var(--pizarra-oscura); }
+/* Hundir un pixel al pulsar: el único gesto que confirma que el clic entró
+   antes de que la acción responda. Sin escalado, que en los botones anchos
+   (cabeceras plegables) se nota deforme. */
+button:active:not(:disabled) { transform: translateY(1px); }
 button.secundario { background: transparent; color: var(--pizarra); }
 button.secundario:hover { background: #ecefe9; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-input[type="text"], input[type="number"], input[type="password"], textarea, select {
+:focus-visible { outline: 2px solid var(--acierto); outline-offset: 2px; }
+/* Los rangos dobles ya marcan el foco en la propia bolita: un recuadro alrededor
+   de toda la pista sobraría. */
+.rango-doble input[type='range']:focus-visible { outline: none; }
+
+input[type="text"], input[type="number"], input[type="password"], input[type="url"],
+textarea, select {
   font: inherit;
   border: 1px solid var(--linea);
   border-radius: var(--radio);
@@ -107,9 +119,15 @@ label { font-size: 14px; font-weight: 600; display: block; margin: 12px 0 4px; }
   top: 0;
   z-index: 5;
   background: var(--tiza);
-  padding: 10px 0 8px;
+  padding: 10px 0 12px;
   margin-bottom: 22px;
-  border-bottom: 1px solid var(--linea);
+}
+/* La caja blanca despega el stepper del fondo cuando queda pegado arriba. */
+.stepper-caja {
+  background: #fff;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  padding: 14px 10px 12px;
 }
 .stepper ol {
   display: flex;
@@ -125,8 +143,9 @@ label { font-size: 14px; font-weight: 600; display: block; margin: 12px 0 4px; }
   flex-direction: column;
   align-items: center;
   flex: 1;
-  max-width: 84px;
+  max-width: 128px;
   position: relative;
+  text-align: center;
 }
 /* Conector entre círculos: se pinta a la izquierda de cada paso menos el primero. */
 .stepper .paso + .paso::before {
@@ -172,20 +191,28 @@ label { font-size: 14px; font-weight: 600; display: block; margin: 12px 0 4px; }
 .stepper .circulo:disabled { opacity: 0.55; }
 .stepper .paso.activo .circulo:disabled { opacity: 1; }
 
+.stepper .etiqueta {
+  font-size: 11.5px;
+  line-height: 1.25;
+  color: var(--tinta-suave);
+  margin-top: 7px;
+  padding: 0 2px;
+}
+.stepper .paso.activo .etiqueta { color: var(--acierto); font-weight: 700; }
+.stepper .paso.completado .etiqueta { color: var(--tinta); }
 .stepper .opcional {
+  display: block;
   font-size: 10.5px;
   font-style: italic;
   color: var(--tinta-suave);
-  margin-top: 3px;
+  font-weight: 400;
   line-height: 1.2;
 }
-.stepper-texto {
-  text-align: center;
-  font-size: 13px;
-  color: var(--tinta-suave);
-  margin: 8px 0 0;
+@media (max-width: 430px) {
+  .stepper .etiqueta { font-size: 10.5px; }
+  .stepper .circulo { width: 26px; height: 26px; font-size: 12.5px; }
+  .stepper .paso + .paso::before { top: 13px; }
 }
-.stepper-texto strong { color: var(--tinta); }
 
 /* Pasos opcionales: el mismo aviso en el título de la pantalla. */
 .etiqueta-opcional {
@@ -207,26 +234,171 @@ label { font-size: 14px; font-weight: 600; display: block; margin: 12px 0 4px; }
   margin: 0 0 16px;
 }
 
+/* Cierre de página: reiniciar es destructivo, así que se le da su propia caja
+   en vez de dejarlo suelto entre el contenido. */
 .empezar-de-cero {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 40px;
-  padding-top: 16px;
-  border-top: 1px solid var(--linea);
-  font-size: 13px;
-  color: var(--tinta-suave);
+  justify-content: center;
+  margin-top: 14px;
 }
-.empezar-de-cero button { padding: 6px 12px; font-size: 13px; }
+.empezar-de-cero button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: #fff;
+  border: 1px solid var(--linea);
+  color: var(--pizarra);
+  padding: 12px 26px;
+  line-height: 1.35;
+}
+.empezar-de-cero button:hover { background: #f3f2ec; }
+.empezar-de-cero .titulo { display: inline-flex; align-items: center; gap: 8px; font-size: 14.5px; }
+.empezar-de-cero .nota { font-size: 12px; font-weight: 400; color: var(--tinta-suave); }
 
 .cabecera {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
-  border-bottom: 3px solid var(--pizarra);
-  padding-bottom: 14px; margin-bottom: 22px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--linea);
+  padding-bottom: 14px; margin-bottom: 6px;
 }
-.marca { font-size: 21px; font-weight: 700; color: var(--pizarra); letter-spacing: -0.02em; }
-.marca span { color: var(--tinta-suave); font-weight: 400; font-size: 13.5px; margin-left: 10px; }
+.marca {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-size: 21px; font-weight: 700; color: var(--pizarra); letter-spacing: -0.02em;
+}
+.marca svg { flex: none; }
+
+/* ── Selector de comunidad ───────────────────────────────────────────── */
+.selector-comunidad { position: relative; }
+.pill-region {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #fff; border: 1px solid var(--linea); color: var(--tinta);
+  border-radius: 999px; padding: 7px 14px; font-size: 14px; font-weight: 600;
+}
+.pill-region:hover { background: #f6f5f0; }
+.pill-region .chevron { color: var(--tinta-suave); line-height: 0; }
+.pill-region .chevron svg { transition: transform 0.15s; }
+.pill-region .chevron.arriba svg { transform: rotate(180deg); }
+
+.menu-comunidades {
+  position: absolute; z-index: 20;
+  top: calc(100% + 6px); left: 0;
+  min-width: 240px; max-height: 320px; overflow-y: auto;
+  margin: 0; padding: 6px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  box-shadow: 0 10px 28px rgba(29, 35, 33, 0.14);
+}
+.menu-comunidades button {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none; border-radius: 7px;
+  background: none; color: var(--tinta);
+  font: inherit; font-size: 14px; font-weight: 500; text-align: left;
+}
+.menu-comunidades button:hover:not(:disabled) { background: var(--acierto-bg); color: var(--acierto); }
+.menu-comunidades button:disabled { opacity: 1; color: var(--tinta-suave); cursor: not-allowed; }
+.menu-comunidades button:disabled .bandera { filter: grayscale(1); opacity: 0.5; }
+.menu-comunidades .nombre { flex: 1; }
+.menu-comunidades .pronto {
+  font-size: 11px; font-style: italic; color: var(--tinta-suave);
+  background: #edece6; border-radius: 999px; padding: 2px 8px;
+}
+.menu-comunidades .marca { color: var(--acierto); font-weight: 700; }
+
+/* Banderas: siluetas de color, sin escudos (ver comunidades.ts). */
+.bandera {
+  flex: none;
+  width: 21px; height: 14px;
+  border-radius: 2px;
+  border: 1px solid rgba(29, 35, 33, 0.18);
+  background-size: cover;
+}
+/* La señal de cuatro palos: nueve franjas iguales, oro y gualda. */
+.bandera-aragon, .bandera-cataluna {
+  background-image: linear-gradient(180deg,
+    #f6c40e 0 11.11%, #d0202f 0 22.22%, #f6c40e 0 33.33%, #d0202f 0 44.44%,
+    #f6c40e 0 55.55%, #d0202f 0 66.66%, #f6c40e 0 77.77%, #d0202f 0 88.88%, #f6c40e 0);
+}
+.bandera-valencia {
+  background-image:
+    linear-gradient(90deg, #1e5aa8 0 26%, transparent 0),
+    linear-gradient(180deg,
+      #f6c40e 0 11.11%, #d0202f 0 22.22%, #f6c40e 0 33.33%, #d0202f 0 44.44%,
+      #f6c40e 0 55.55%, #d0202f 0 66.66%, #f6c40e 0 77.77%, #d0202f 0 88.88%, #f6c40e 0);
+}
+.bandera-baleares {
+  background-image:
+    linear-gradient(90deg, #5b2d8e 0 30%, transparent 0),
+    linear-gradient(180deg,
+      #f6c40e 0 11.11%, #d0202f 0 22.22%, #f6c40e 0 33.33%, #d0202f 0 44.44%,
+      #f6c40e 0 55.55%, #d0202f 0 66.66%, #f6c40e 0 77.77%, #d0202f 0 88.88%, #f6c40e 0);
+}
+.bandera-andalucia {
+  background-image: linear-gradient(180deg, #0d8043 0 33.3%, #fff 0 66.6%, #0d8043 0);
+}
+.bandera-extremadura {
+  background-image: linear-gradient(180deg, #0d8043 0 33.3%, #fff 0 66.6%, #1d2321 0);
+}
+.bandera-canarias {
+  background-image: linear-gradient(90deg, #fff 0 33.3%, #0072c6 0 66.6%, #f6c40e 0);
+}
+.bandera-cantabria {
+  background-image: linear-gradient(180deg, #fff 0 50%, #d0202f 0);
+}
+.bandera-castilla-la-mancha {
+  background-image: linear-gradient(90deg, #d0202f 0 50%, #fff 0);
+}
+.bandera-castilla-y-leon {
+  background-image: conic-gradient(#9b1c31 0 25%, #fff 0 50%, #9b1c31 0 75%, #fff 0);
+}
+.bandera-la-rioja {
+  background-image: linear-gradient(180deg, #d0202f 0 25%, #fff 0 50%, #0d8043 0 75%, #f6c40e 0);
+}
+.bandera-galicia {
+  background-image: linear-gradient(147deg, #fff 0 40%, #0072c6 0 60%, #fff 0);
+}
+.bandera-asturias {
+  background-image:
+    linear-gradient(90deg, transparent 0 34%, #f6c40e 0 52%, transparent 0),
+    linear-gradient(180deg, transparent 0 30%, #f6c40e 0 48%, transparent 0),
+    linear-gradient(#0072c6, #0072c6);
+}
+.bandera-pais-vasco {
+  background-image:
+    linear-gradient(90deg, transparent 0 40%, #fff 0 60%, transparent 0),
+    linear-gradient(180deg, transparent 0 40%, #fff 0 60%, transparent 0),
+    linear-gradient(147deg, transparent 0 42%, #0d8043 0 58%, transparent 0),
+    linear-gradient(33deg, transparent 0 42%, #0d8043 0 58%, transparent 0),
+    linear-gradient(#d0202f, #d0202f);
+}
+.bandera-madrid {
+  background-image:
+    radial-gradient(circle at 30% 35%, #fff 0 1.4px, transparent 0),
+    radial-gradient(circle at 50% 35%, #fff 0 1.4px, transparent 0),
+    radial-gradient(circle at 70% 35%, #fff 0 1.4px, transparent 0),
+    radial-gradient(circle at 40% 68%, #fff 0 1.4px, transparent 0),
+    radial-gradient(circle at 60% 68%, #fff 0 1.4px, transparent 0),
+    linear-gradient(#c8102e, #c8102e);
+}
+.bandera-navarra {
+  background-image:
+    radial-gradient(circle at 50% 50%, #f6c40e 0 3px, transparent 0),
+    linear-gradient(#d0202f, #d0202f);
+}
+.bandera-murcia {
+  background-image:
+    radial-gradient(circle at 28% 32%, #f6c40e 0 1.6px, transparent 0),
+    radial-gradient(circle at 72% 68%, #f6c40e 0 1.6px, transparent 0),
+    linear-gradient(#8b1a2b, #8b1a2b);
+}
+.proximamente {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12.5px; color: var(--tinta-suave);
+}
 
 .fila { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .metricas { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 16px 0; }
@@ -243,25 +415,169 @@ label { font-size: 14px; font-weight: 600; display: block; margin: 12px 0 4px; }
 .conn.ok { background: var(--acierto-bg); color: var(--acierto); }
 .conn.media { background: var(--aviso-bg); color: var(--aviso); }
 .conn.off { background: #edece6; color: var(--tinta-suave); }
-.cabecera { align-items: center; }
+/* El estado de la extensión baja al pie: es opcional y la cabecera ya está
+   ocupada por la comunidad activa. */
+.conexion-extension {
+  display: flex; justify-content: center;
+  margin: 40px 0 0; padding-top: 20px;
+  border-top: 1px solid var(--linea);
+}
 
 /* ── Importación de PDFs ─────────────────────────────────────────────── */
+/* Cada bloque de la importación es una tarjeta con cabecera propia: el paso 1
+   es obligatorio y el 2 admite dos vías, así que necesitan jerarquía visible. */
+.seccion { padding: 16px 18px; }
+.seccion-cab { display: flex; align-items: center; gap: 12px; }
+.seccion-cab h2 { margin: 0; font-size: 18px; flex: 1; }
+.seccion-icono {
+  flex: none;
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  background: #eef1ec;
+  color: var(--pizarra);
+  display: grid; place-items: center;
+}
+.plegar {
+  flex: none;
+  background: none; border: none; color: var(--tinta-suave);
+  padding: 4px; line-height: 0; border-radius: 6px;
+}
+.plegar:hover { background: #f0efe9; }
+.plegar svg { transition: transform 0.15s; }
+.plegar.cerrado svg { transform: rotate(180deg); }
+.seccion-cuerpo { padding-top: 14px; }
+
 .dropzone {
-  border: 2px dashed var(--linea);
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  border: 1.5px dashed var(--linea);
   border-radius: var(--radio);
-  padding: 16px;
-  margin: 10px 0;
-  text-align: center;
+  padding: 14px 16px;
+  margin: 0;
+  cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
-.dropzone.activa { border-color: var(--pizarra); background: var(--acierto-bg); }
-.dropzone p { margin: 4px 0 10px; }
+.dropzone:hover { border-color: var(--pizarra); }
+/* Mientras lee, la zona deja de invitar a soltar nada. */
+.dropzone.ocupada { cursor: progress; border-style: solid; background: #faf9f5; }
+.dropzone.ocupada:hover { border-color: var(--linea); }
+.dropzone .icono .spinner {
+  width: 20px; height: 20px; margin: 0;
+  border-width: 2.5px; vertical-align: 0;
+}
+/* Barra de avance: ocupa el ancho del texto, bajo las dos líneas. */
+.dropzone .barra {
+  display: block;
+  height: 4px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: var(--linea);
+  overflow: hidden;
+}
+.dropzone .barra span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--acierto);
+  transition: width 0.25s ease-out;
+}
+.dropzone.activa { border-color: var(--acierto); background: var(--acierto-bg); }
+.dropzone .icono {
+  flex: none;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: #eef1ec; color: var(--pizarra);
+  display: grid; place-items: center;
+}
+.dropzone .texto { flex: 1; min-width: 150px; }
+.dropzone .texto .estado { display: block; font-size: inherit; color: inherit; }
+.dropzone .texto strong { display: block; font-size: 14.5px; font-weight: 600; }
+.dropzone .texto span { font-size: 13px; color: var(--tinta-suave); }
+.dropzone .texto .aviso { color: var(--aviso); }
+.dropzone button { flex: none; }
+
+/* El enlace es la alternativa al fichero: va fuera del área de arrastre pero
+   dentro del mismo bloque, con la leyenda montada sobre el borde. */
+.campo-url {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+  padding: 12px 12px 12px;
+  margin: 14px 0 0;
+}
+.campo-url legend {
+  font-size: 12.5px; color: var(--tinta-suave);
+  padding: 0 6px; margin-left: 2px;
+}
+.campo-url input { flex: 1; min-width: 190px; }
+.campo-url button { flex: none; display: inline-flex; align-items: center; gap: 7px; }
+
+/* Dos vías complementarias para las especialidades: PDF + nombre y alta a mano.
+   Se pueden usar las dos a la vez, así que cada una se pliega por su cuenta y
+   el círculo de la cabecera dice si esa vía está aportando algo. */
+.opciones { display: grid; gap: 10px; }
+.opcion { border: 1px solid var(--linea); border-radius: var(--radio); overflow: hidden; }
+.opcion.activa { border-color: var(--acierto); }
+.opcion-cab {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: none; border-radius: 0;
+  background: #fff; color: var(--tinta);
+  font: inherit; font-size: 15px; font-weight: 600; text-align: left;
+}
+.opcion-cab:hover { background: #f6f5f0; }
+.opcion.activa .opcion-cab { background: var(--acierto-bg); color: var(--acierto); }
+.opcion.activa .opcion-cab:hover { background: #dcece2; }
+.opcion-cab .marca-estado {
+  flex: none; width: 20px; height: 20px; border-radius: 50%;
+  border: 2px solid var(--linea); background: #fff;
+  display: grid; place-items: center; color: #fff;
+}
+.opcion.activa .marca-estado { border-color: var(--acierto); background: var(--acierto); }
+.opcion-cab .titulo { flex: 1; }
+.opcion-cab .senal { flex: none; color: var(--tinta-suave); line-height: 0; }
+.opcion.activa .senal { color: var(--acierto); }
+.opcion-cab .senal svg { transition: transform 0.15s; }
+.opcion-cab.cerrado .senal svg { transform: rotate(180deg); }
+.opcion-cuerpo { padding: 2px 14px 16px; }
+.opcion-cuerpo label { margin-top: 14px; }
+.opcion-cuerpo label:first-child { margin-top: 6px; }
 
 .fila-botones { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
-.fila-url { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-.fila-url input { flex: 1; min-width: 220px; }
-.fila-selects { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.fila-selects select { flex: 1; min-width: 180px; }
+.fila-selects { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.fila-selects .campo { flex: 1; min-width: 150px; }
+.fila-selects .campo.estrecho { flex: 0 1 160px; }
+.fila-selects label { margin: 0 0 4px; font-size: 12.5px; font-weight: 500; color: var(--tinta-suave); }
+.fila-selects label .opcional { font-weight: 400; font-style: italic; }
+.fila-selects button { flex: none; }
+
+/* Llamada a la acción del paso: única, centrada y con el requisito debajo. */
+.cta { text-align: center; margin: 22px 0 14px; }
+.cta button {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-size: 17px; padding: 14px 34px;
+}
+.cta .requisito {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12.5px; color: var(--tinta-suave);
+  margin: 10px 0 0;
+}
+
+/* Bloque avanzado: cerrado por defecto y con el mismo aspecto que una sección. */
+.avanzado { padding: 0; overflow: hidden; }
+.avanzado-cab {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  padding: 14px 18px;
+  border: none; border-radius: 0;
+  background: #fff; color: var(--tinta);
+  font: inherit; font-size: 14.5px; font-weight: 600; text-align: left;
+}
+.avanzado-cab:hover { background: #f6f5f0; }
+.avanzado-cab .titulo { flex: 1; }
+.avanzado-cab .senal { color: var(--tinta-suave); line-height: 0; }
+.avanzado-cab .senal svg { transition: transform 0.18s ease; }
+.avanzado-cab:not(.cerrado) .senal svg { transform: rotate(180deg); }
+.avanzado .contenido { padding: 0 18px 18px; }
 
 .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .chip .quitar {
@@ -428,4 +744,74 @@ dialog::backdrop { background: rgba(30, 41, 33, 0.45); }
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* ── Animaciones ─────────────────────────────────────────────────────────
+   Las clases `despliega`/`repliega`/`entra-*` las aplican `animate.enter` y
+   `animate.leave` de Angular, que mantienen el nodo vivo hasta que termina la
+   animación de salida. */
+
+/* Plegables de altura real. `grid-template-rows` sí interpola entre 0fr y 1fr,
+   que es lo que permite animar hasta "lo que ocupe" sin saber la altura. */
+.plegable { display: grid; grid-template-rows: 1fr; }
+.plegable > * { min-height: 0; overflow: hidden; }
+.despliega { animation: despliega 0.22s cubic-bezier(0.22, 0.61, 0.36, 1); }
+.repliega { animation: repliega 0.18s ease-in forwards; }
+@keyframes despliega { from { grid-template-rows: 0fr; opacity: 0; } }
+@keyframes repliega { to { grid-template-rows: 0fr; opacity: 0; } }
+
+/* Menú de comunidades: cae desde su propio borde superior. */
+.entra-menu { animation: entra-menu 0.16s cubic-bezier(0.22, 0.61, 0.36, 1); }
+.sale-menu { animation: sale-menu 0.12s ease-in forwards; }
+@keyframes entra-menu {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+}
+@keyframes sale-menu {
+  to { opacity: 0; transform: translateY(-6px) scale(0.97); }
+}
+.menu-comunidades { transform-origin: top left; }
+
+/* Cambios de estado dentro de una zona de arrastre y alta de especialidades. */
+.aparece { animation: aparece 0.2s ease-out; }
+/* La llamada a la acción se retira hacia arriba cediendo el sitio al resumen. */
+.sale-cta { animation: sale-cta 0.2s ease-in forwards; }
+@keyframes sale-cta { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes aparece { from { opacity: 0; transform: translateY(-3px); } }
+.entra-chip { animation: entra-chip 0.2s cubic-bezier(0.34, 1.4, 0.64, 1); }
+.sale-chip { animation: sale-chip 0.15s ease-in forwards; }
+@keyframes entra-chip { from { opacity: 0; transform: scale(0.8); } }
+@keyframes sale-chip { to { opacity: 0; transform: scale(0.8); } }
+
+/* Barra de avance sin total conocido: se mueve para no parecer atascada. */
+.barra.indeterminada span {
+  width: 40% !important;
+  animation: barra-indeterminada 1.1s ease-in-out infinite;
+}
+@keyframes barra-indeterminada {
+  from { transform: translateX(-105%); }
+  to { transform: translateX(255%); }
+}
+
+/* La llamada a la acción se levanta al pasar por encima; al pulsar, el
+   `translateY(1px)` global la devuelve al sitio. */
+.cta button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(35, 68, 60, 0.22);
+}
+.cta button svg { transition: transform 0.25s ease; }
+.cta button:hover:not(:disabled) svg { transform: rotate(-12deg) scale(1.1); }
+
+/* Quien pide menos movimiento se queda sin adornos, pero no sin saber que algo
+   está cargando: el spinner y la barra indeterminada siguen vivos, más lentos. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .spinner, .barra.indeterminada span {
+    animation-duration: 1.6s !important;
+    animation-iteration-count: infinite !important;
+  }
+  .cta button:hover:not(:disabled) { transform: none; }
 }
