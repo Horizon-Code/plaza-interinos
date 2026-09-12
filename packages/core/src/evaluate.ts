@@ -144,13 +144,16 @@ export function evaluateVacancy(
     else if (result.positive) positiveReasons.push(reason);
   }
 
-  const travel = estimator.estimate(profile, vacancy);
+  const estimate = estimator.estimate(profile, vacancy);
+  const travel = estimate && Number.isFinite(estimate.distanceKm) && estimate.distanceKm >= 0 &&
+    Number.isFinite(estimate.travelMinutes) && estimate.travelMinutes >= 0 ? estimate : undefined;
   const { limit, source } = resolveTravelLimit(profile, vacancy);
   const hayLimite =
     limit.maxKm != null ||
     limit.maxMinutes != null ||
     profile.maxDistanceKm != null ||
-    profile.maxTravelMinutes != null;
+    profile.maxTravelMinutes != null ||
+    Boolean(profile.travelWorkloadBands?.length);
   if (travel) {
     if (limit.maxKm != null && travel.distanceKm > limit.maxKm) {
       hardExclusionReasons.push({
@@ -169,7 +172,7 @@ export function evaluateVacancy(
     warnings.push({
       ruleId: 'distance',
       reasonCode: 'distance-unknown',
-      message: 'No se ha podido calcular la distancia: faltan coordenadas del centro o de tu domicilio.'
+      message: 'No se ha podido calcular el trayecto: falta una ubicación válida o el servicio de rutas no ha devuelto una ruta. Revisa esta plaza manualmente.'
     });
   }
 

@@ -4,6 +4,9 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package*.json ./
+# El .npmrc trae `legacy-peer-deps`, sin el cual `npm install` aborta al
+# resolver las peer dependencies del arbol. `package*.json` no lo copia.
+COPY .npmrc ./
 COPY packages/core/package.json packages/core/
 COPY apps/api/package.json apps/api/
 RUN npm install
@@ -28,4 +31,14 @@ COPY --from=build /app/apps/api/package.json ./apps/api/
 COPY --from=build /app/apps/api/prisma ./apps/api/prisma
 WORKDIR /app/apps/api
 EXPOSE 3000
-CMD ["node", "dist/src/main.js"]
+
+# Las migraciones se aplican al arrancar, no a mano.
+#
+# Hacerlo a mano es como produccion se quedo tres migraciones por detras del
+# codigo sin que nadie se diera cuenta. `migrate deploy` solo aplica lo que
+# falta y nunca resetea nada (eso es `migrate dev`, que no se usa aqui).
+#
+# Si una migracion falla, el contenedor no arranca: preferimos que el
+# despliegue se caiga a que la API sirva peticiones contra un esquema que no
+# se corresponde con el codigo.
+CMD ["sh", "-c", "npx prisma migrate deploy --schema prisma/schema.prisma && node dist/src/main.js"]

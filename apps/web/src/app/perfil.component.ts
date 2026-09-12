@@ -1,9 +1,15 @@
 import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { CuentaComponent } from './cuenta.component';
 import { Router } from '@angular/router';
-import { claveEspecialidad } from '@plazainterinos/core';
+import { claveEspecialidad, type CandidateMatch } from '@plazainterinos/core';
 import { ConfiguracionService, type Banda } from './configuracion.service';
 import { EstadoService } from './estado.service';
+
+/** Palabras que en español no se capitalizan dentro de un nombre. */
+const MENUDAS = new Set([
+  'de', 'del', 'la', 'las', 'los', 'el', 'y', 'e', 'en', 'a', 'al', 'o', 'u', 'con', 'para', 'por'
+]);
 
 /**
  * Paso 2 · Perfil. Solo captura datos: quién eres, dónde vives y hasta dónde
@@ -11,11 +17,17 @@ import { EstadoService } from './estado.service';
  *
  * No filtra ni ordena (punto 3): eso son los pasos 3 y 4. Aquí ya no hay
  * localidades excluidas ni condiciones de vacantes.
+ *
+ * SCRUM-22: la pantalla se simplifica para el móvil. Las especialidades se ven
+ * por su nombre ("Matematicas", "Informatica"), sin códigos ni número de orden;
+ * la vivienda se comprueba con botón, con Enter o con el GPS del propio
+ * navegador; y las bandas de jornada se rellenan con campos numéricos, porque
+ * los sliders dobles eran imposibles de afinar con el dedo.
  */
 @Component({
   selector: 'tp-perfil',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, CuentaComponent],
   template: `
     <h1>Tu perfil</h1>
     <p class="lead">
@@ -24,44 +36,65 @@ import { EstadoService } from './estado.service';
     </p>
 
     <!-- ── 1 · Especialidades ─────────────────────────────────────────── -->
-    <div class="card">
+    <div class="card" id="zona-especialidades" [class.resaltada]="resaltado() === 'zona-especialidades'">
       <h2>Tus especialidades</h2>
       @if (estado.especialidadesUsuario().length) {
-        @for (e of estado.especialidadesUsuario(); track e.bodyCode + e.specialtyCode) {
-          <span class="check">
-            <input type="checkbox"
-              [checked]="incluida(e.bodyCode, e.specialtyCode)"
-              (change)="alternarEspecialidad(e.bodyCode, e.specialtyCode)" />
-            {{ e.bodyCode }} · {{ e.bodyName }} — {{ e.specialtyCode }} {{ e.specialtyName }}
-            @if (e.orden != null) { <span class="badge">(tu orden: {{ e.orden }})</span> }
-          </span>
-        }
+        <p class="fuente">Toca una para dejarla fuera de esta selección.</p>
+        <div class="especialidades">
+          @for (e of estado.especialidadesUsuario(); track e.bodyCode + e.specialtyCode) {
+            <button type="button" class="esp"
+                    [class.activa]="incluida(e.bodyCode, e.specialtyCode)"
+                    [attr.aria-pressed]="incluida(e.bodyCode, e.specialtyCode)"
+                    [attr.title]="enBonito(e.bodyName)"
+                    (click)="alternarEspecialidad(e.bodyCode, e.specialtyCode)">
+              @if (incluida(e.bodyCode, e.specialtyCode)) { <span aria-hidden="true">✓</span> }
+              {{ nombre(e) }}
+            </button>
+          }
+        </div>
       } @else {
         <p class="fuente">Sin especialidades todavía: impórtalas en el paso 1 (candidatos o a mano).</p>
       }
     </div>
 
-    <div class="card">
+    <div class="card" id="zona-vivienda" [class.resaltada]="resaltado() === 'zona-vivienda'">
       <!-- ── 2 · Vivienda ─────────────────────────────────────────────── -->
-      <h2>Tu vivienda actual</h2>
-      <label>Dirección (calle y municipio, o solo el municipio)</label>
-      <input type="text" [ngModel]="config.direccion()" (ngModelChange)="config.direccion.set($event)"
-             placeholder="Calle Mayor 1, Zaragoza" (blur)="comprobarDireccion()" />
-      <div class="fila-botones" style="justify-content:flex-start; margin:8px 0;">
+      <h2>Tu vivienda habitual</h2>
+      <label for="direccion">Dirección (calle y municipio, o solo el municipio)</label>
+      <input id="direccion" type="text" autocomplete="street-address"
+             [disabled]="localizando()"
+             [ngModel]="config.direccion()" (ngModelChange)="escribirDireccion($event)"
+             placeholder="Calle Mayor 1, Zaragoza"
+             (keydown.enter)="comprobarDireccion()" />
+      <div class="acciones-vivienda">
         <button type="button" class="secundario" (click)="comprobarDireccion()"
-                [disabled]="!config.direccion().trim() || comprobandoDireccion()">
+                [disabled]="!config.direccion().trim() || comprobandoDireccion() || localizando()">
           @if (comprobandoDireccion()) { <span class="spinner"></span> }
           Comprobar
         </button>
+        <button type="button" class="secundario" (click)="usarUbicacionActual()"
+                [disabled]="comprobandoDireccion() || localizando()">
+          @if (localizando()) { <span class="spinner"></span> }
+          Usar ubicación actual
+        </button>
       </div>
       @if (config.ubicacion(); as u) {
-        <p class="fuente">✓ Usaremos esta ubicación para calcular distancias:<br />{{ u.displayName }}</p>
+        <p class="fuente">✓ Usaremos esta ubicación para calcular los trayectos:<br />{{ u.displayName }}</p>
       } @else if (errorDireccion()) {
         <p class="error">{{ errorDireccion() }}</p>
+      } @else {
+        <p class="fuente">Sin comprobar la dirección no se pueden calcular minutos ni kilómetros.</p>
       }
+    </div>
 
-      <!-- ── 3 · Trayecto ─────────────────────────────────────────────── -->
-      <h2>Trayecto</h2>
+    <!-- ── 3 · Trayecto y jornada ───────────────────────────────────────── -->
+    <div class="card">
+      <h2>Trayecto y jornada</h2>
+      <p class="fuente">
+        Trayectos de ida en coche desde tu vivienda hasta cada centro, por carretera.
+        El tiempo es estimado, sin tráfico en tiempo real.
+      </p>
+
       <div class="tabs" role="tablist" aria-label="Unidad del trayecto">
         <button type="button" role="tab" [attr.aria-selected]="config.modo() === 'minutes'"
                 [class.activa]="config.modo() === 'minutes'" (click)="config.modo.set('minutes')">
@@ -73,9 +106,13 @@ import { EstadoService } from './estado.service';
         </button>
       </div>
 
-      <label>Máximo general ({{ config.unidad() }})</label>
-      <input type="number" [ngModel]="config.maxActual()" (ngModelChange)="fijarMax($event)"
-             [placeholder]="config.modo() === 'km' ? '60' : '45'" min="0" />
+      <label for="maximo">Máximo general ({{ config.unidad() }})</label>
+      <div class="campo-unidad">
+        <input id="maximo" type="number" inputmode="numeric"
+               [ngModel]="config.maxActual()" (ngModelChange)="fijarMax($event)"
+               [placeholder]="config.modo() === 'km' ? '60' : '45'" min="0" [max]="config.escala()" />
+        <span class="unidad">{{ config.unidad() }}</span>
+      </div>
 
       @if (config.modo() === 'km') {
         <div style="margin-top:8px;">
@@ -108,32 +145,33 @@ import { EstadoService } from './estado.service';
                       [attr.aria-label]="'Quitar la banda de ' + b.desde + ' a ' + b.hasta">✕</button>
             </div>
 
-            <label [attr.for]="'desde-' + i">Trayecto ({{ config.unidad() }})</label>
-            <div class="rango-doble">
-              <div class="pista"></div>
-              <div class="activo"
-                   [style.left.%]="pct(b.desde, config.escala())"
-                   [style.width.%]="pct(b.hasta - b.desde, config.escala())"></div>
-              <input [id]="'desde-' + i" type="range" min="0" [max]="config.escala()" step="5"
-                     [ngModel]="b.desde" (ngModelChange)="editar(i, 'desde', $event)"
-                     [attr.aria-label]="'Trayecto mínimo, banda ' + (i + 1)" />
-              <input type="range" min="0" [max]="config.escala()" step="5"
-                     [ngModel]="b.hasta" (ngModelChange)="editar(i, 'hasta', $event)"
-                     [attr.aria-label]="'Trayecto máximo, banda ' + (i + 1)" />
-            </div>
-
-            <label>Jornada que aceptas en ese tramo (%)</label>
-            <div class="rango-doble">
-              <div class="pista"></div>
-              <div class="activo"
-                   [style.left.%]="pct(b.minJornada, 100)"
-                   [style.width.%]="pct(b.maxJornada - b.minJornada, 100)"></div>
-              <input type="range" min="0" max="100" step="5"
-                     [ngModel]="b.minJornada" (ngModelChange)="editar(i, 'minJornada', $event)"
-                     [attr.aria-label]="'Jornada mínima, banda ' + (i + 1)" />
-              <input type="range" min="0" max="100" step="5"
-                     [ngModel]="b.maxJornada" (ngModelChange)="editar(i, 'maxJornada', $event)"
-                     [attr.aria-label]="'Jornada máxima, banda ' + (i + 1)" />
+            <div class="campos-banda">
+              <div class="campo">
+                <label [attr.for]="'desde-' + i">Desde ({{ config.unidad() }})</label>
+                <input [id]="'desde-' + i" type="number" inputmode="numeric" min="0"
+                       [max]="config.escala()" step="5"
+                       [ngModel]="b.desde" (ngModelChange)="editar(i, 'desde', $event)"
+                       (blur)="sincronizar($event, b.desde)" />
+              </div>
+              <div class="campo">
+                <label [attr.for]="'hasta-' + i">Hasta ({{ config.unidad() }})</label>
+                <input [id]="'hasta-' + i" type="number" inputmode="numeric" min="0"
+                       [max]="config.escala()" step="5"
+                       [ngModel]="b.hasta" (ngModelChange)="editar(i, 'hasta', $event)"
+                       (blur)="sincronizar($event, b.hasta)" />
+              </div>
+              <div class="campo">
+                <label [attr.for]="'jmin-' + i">Jornada mínima (%)</label>
+                <input [id]="'jmin-' + i" type="number" inputmode="numeric" min="0" max="100" step="5"
+                       [ngModel]="b.minJornada" (ngModelChange)="editar(i, 'minJornada', $event)"
+                       (blur)="sincronizar($event, b.minJornada)" />
+              </div>
+              <div class="campo">
+                <label [attr.for]="'jmax-' + i">Jornada máxima (%)</label>
+                <input [id]="'jmax-' + i" type="number" inputmode="numeric" min="0" max="100" step="5"
+                       [ngModel]="b.maxJornada" (ngModelChange)="editar(i, 'maxJornada', $event)"
+                       (blur)="sincronizar($event, b.maxJornada)" />
+              </div>
             </div>
 
             @if (config.modo() === 'km') {
@@ -165,7 +203,21 @@ import { EstadoService } from './estado.service';
     <div class="fila-botones" style="justify-content:flex-start;">
       <button (click)="continuar()">Continuar a los filtros</button>
     </div>
-    @if (estado.error()) { <p class="error">{{ estado.error() }}</p> }
+    @if (estado.error()) {
+      @if (zonaDelError(); as zona) {
+        <button type="button" class="error error-ir" (click)="irA(zona)">
+          {{ estado.error() }} <span class="flecha" aria-hidden="true">↑</span>
+          <span class="ir">Llévame ahí</span>
+        </button>
+      } @else {
+        <p class="error">{{ estado.error() }}</p>
+      }
+    }
+
+    <p class="borrar-perfil">
+      <button type="button" class="secundario" (click)="borrarDatos()">Borrar datos del perfil</button>
+      <span class="nota">Vacía dirección, especialidades marcadas y trayecto. No toca filtros ni orden.</span>
+    </p>
 
     <!-- ── Modal del coche ───────────────────────────────────────────── -->
     <dialog #dlgCoche class="card">
@@ -192,6 +244,8 @@ import { EstadoService } from './estado.service';
         <button type="button" (click)="cerrarCoche(true)" [disabled]="!consumo || !precio">Guardar coche</button>
       </div>
     </dialog>
+
+    <tp-cuenta />
   `
 })
 export class PerfilComponent {
@@ -201,6 +255,8 @@ export class PerfilComponent {
   private readonly dlgCoche = viewChild.required<ElementRef<HTMLDialogElement>>('dlgCoche');
 
   readonly comprobandoDireccion = signal(false);
+  readonly localizando = signal(false);
+  readonly resaltado = signal<string | null>(null);
   readonly errorDireccion = signal('');
   readonly precios = signal<{ diesel: number; gasolina: number; fallback: boolean } | null>(null);
 
@@ -217,6 +273,35 @@ export class PerfilComponent {
     }
   }
 
+  // ── Especialidades ──────────────────────────────────────────────────────
+  /** Solo el nombre: ni código de cuerpo, ni de especialidad, ni número de orden. */
+  nombre(e: CandidateMatch): string {
+    return this.enBonito(e.specialtyName || e.bodyName || 'Especialidad');
+  }
+
+  /**
+   * El catálogo oficial viene en mayúsculas ("MATEMATICAS"). Se pasa a
+   * capitalización normal respetando preposiciones y siglas cortas. Las tildes
+   * que no trae la fuente no se pueden inventar: "MATEMATICAS" queda
+   * "Matematicas".
+   */
+  enBonito(texto: string): string {
+    return texto
+      .split(' ')
+      .filter(t => t.length > 0)
+      .map((token, i) => {
+        const letras = token.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, '');
+        const bajo = token.toLocaleLowerCase('es');
+        // Siglas y abreviaturas cortas en mayúscula ("(LOE)", "FP") se respetan.
+        if (letras.length > 0 && letras.length <= 3 && !MENUDAS.has(letras.toLocaleLowerCase('es'))) {
+          if (token === token.toLocaleUpperCase('es')) return token;
+        }
+        if (i > 0 && MENUDAS.has(bajo)) return bajo;
+        return bajo.replace(/[a-záéíóúüñ]/, c => c.toLocaleUpperCase('es'));
+      })
+      .join(' ');
+  }
+
   incluida(cuerpo: string, especialidad: string): boolean {
     return this.config.especialidadesIncluidas().includes(claveEspecialidad(cuerpo, especialidad));
   }
@@ -229,10 +314,135 @@ export class PerfilComponent {
     );
   }
 
-  pct(valor: number, sobre: number): number {
-    return Math.max(0, Math.min(100, (valor / sobre) * 100));
+  // ── Vivienda ────────────────────────────────────────────────────────────
+  /**
+   * Al reescribir la dirección se invalida la ubicación confirmada: mantener el
+   * ✓ de una dirección anterior haría creer que los trayectos son de la nueva.
+   */
+  escribirDireccion(valor: string): void {
+    this.config.direccion.set(valor);
+    if (this.config.ubicacion()) this.config.ubicacion.set(null);
+    this.errorDireccion.set('');
   }
 
+  async comprobarDireccion(): Promise<void> {
+    const q = this.config.direccion().trim();
+    if (!q || this.comprobandoDireccion() || this.localizando()) return;
+    this.comprobandoDireccion.set(true);
+    this.errorDireccion.set('');
+    try {
+      const ubicacion = await this.estado.geocodificar(q);
+      if (this.config.direccion().trim() === q) this.config.ubicacion.set(ubicacion);
+    } catch (error) {
+      if (this.config.direccion().trim() === q) {
+        this.config.ubicacion.set(null);
+        this.errorDireccion.set(String(error instanceof Error ? error.message : error));
+      }
+    } finally {
+      this.comprobandoDireccion.set(false);
+    }
+  }
+
+  /**
+   * GPS del navegador. Permiso y error se tratan aquí, no se dejan colgando.
+   *
+   * Con vigilancia propia: si el usuario cierra el diálogo de permiso sin
+   * contestar, el navegador no llama a NINGUNA de las dos devoluciones y su
+   * `timeout` tampoco salta. Sin este temporizador `localizando` se quedaba en
+   * `true` y el botón se deshabilitaba para siempre.
+   */
+  async usarUbicacionActual(): Promise<void> {
+    if (this.localizando()) return;
+    if (!('geolocation' in navigator)) {
+      this.errorDireccion.set('Este navegador no puede darnos tu ubicación. Escribe la dirección a mano.');
+      return;
+    }
+
+    // Si el permiso está bloqueado, pedirlo otra vez falla en silencio: más vale
+    // decirlo que dejar al usuario pulsando un botón que nunca hará nada.
+    if (await this.permisoBloqueado()) {
+      this.errorDireccion.set(
+        'Tu navegador tiene bloqueada la ubicación para esta página. Ábrelo en el candado de la barra de direcciones y permítela, o escribe la dirección a mano.'
+      );
+      return;
+    }
+
+    this.localizando.set(true);
+    this.errorDireccion.set('');
+
+    let resuelto = false;
+    const rendirse = window.setTimeout(() => {
+      if (resuelto) return;
+      resuelto = true;
+      this.localizando.set(false);
+      this.errorDireccion.set('No hemos recibido respuesta a la petición de ubicación. Vuelve a intentarlo o escribe la dirección.');
+    }, 20_000);
+
+    const terminar = () => {
+      if (resuelto) return true;
+      resuelto = true;
+      window.clearTimeout(rendirse);
+      return false;
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      posicion => {
+        if (terminar()) return;
+        void this.resolverPosicion(posicion);
+      },
+      error => {
+        if (terminar()) return;
+        this.localizando.set(false);
+        this.errorDireccion.set(this.mensajeGeolocalizacion(error));
+      },
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 }
+    );
+  }
+
+  /** `permissions` no existe en todos los navegadores: si no está, se intenta igual. */
+  private async permisoBloqueado(): Promise<boolean> {
+    try {
+      const estado = await navigator.permissions?.query({ name: 'geolocation' as PermissionName });
+      return estado?.state === 'denied';
+    } catch {
+      return false;
+    }
+  }
+
+  private async resolverPosicion(posicion: GeolocationPosition): Promise<void> {
+    const { latitude, longitude } = posicion.coords;
+    try {
+      const sitio = await this.estado.geocodificarInverso(latitude, longitude);
+      this.config.ubicacion.set(sitio);
+      this.config.direccion.set(sitio.displayName);
+    } catch {
+      // Sin nombre, pero las coordenadas del GPS son válidas y son lo que de
+      // verdad hace falta para calcular los trayectos: no se tiran.
+      this.config.ubicacion.set({
+        lat: latitude,
+        lng: longitude,
+        displayName: `Tu ubicación actual (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`
+      });
+      this.config.direccion.set(`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+    } finally {
+      this.localizando.set(false);
+    }
+  }
+
+  private mensajeGeolocalizacion(error: GeolocationPositionError): string {
+    switch (error.code) {
+      case error.PERMISSION_DENIED:
+        return 'No nos has dado permiso para usar tu ubicación. Actívalo en el candado de la barra del navegador, o escribe la dirección a mano.';
+      case error.POSITION_UNAVAILABLE:
+        return 'Tu dispositivo no ha podido dar una posición. Escribe la dirección a mano.';
+      case error.TIMEOUT:
+        return 'Se ha agotado el tiempo esperando la ubicación. Vuelve a intentarlo o escribe la dirección.';
+      default:
+        return 'No se ha podido obtener tu ubicación. Escribe la dirección a mano.';
+    }
+  }
+
+  // ── Trayecto y bandas ───────────────────────────────────────────────────
   medio(b: Banda): number {
     return Math.round((b.desde + b.hasta) / 2);
   }
@@ -241,9 +451,18 @@ export class PerfilComponent {
     this.config.maxPorModo.set({ ...this.config.maxPorModo(), [this.config.modo()]: valor });
   }
 
-  /** Edita una banda manteniendo siempre desde ≤ hasta y min ≤ max. */
-  editar(i: number, campo: keyof Banda, valor: number): void {
-    const n = +valor;
+  /**
+   * Edita una banda manteniendo siempre desde ≤ hasta y min ≤ max, y sin dejar
+   * que ningún valor se salga de la escala.
+   *
+   * Un campo vacío no se toca: plantar un 0 en cuanto borras para reescribir es
+   * justo lo que hace odiosos los formularios numéricos en el móvil. Al salir
+   * del campo, `sincronizar` repinta el valor que sí está guardado.
+   */
+  editar(i: number, campo: keyof Banda, valor: number | null): void {
+    if (valor == null || Number.isNaN(valor)) return;
+    const tope = campo === 'desde' || campo === 'hasta' ? this.config.escala() : 100;
+    const n = Math.max(0, Math.min(tope, Math.round(valor)));
     const lista = this.config.bandas().map((b, idx) => {
       if (idx !== i) return b;
       const s = { ...b, [campo]: n };
@@ -254,6 +473,11 @@ export class PerfilComponent {
       return s;
     });
     this.guardarBandas(lista);
+  }
+
+  /** Al salir del campo, lo que se ve vuelve a ser lo que hay guardado. */
+  sincronizar(evento: Event, valor: number): void {
+    (evento.target as HTMLInputElement).value = String(valor);
   }
 
   anadirBanda(): void {
@@ -271,21 +495,7 @@ export class PerfilComponent {
     this.config.bandasPorModo.set({ ...this.config.bandasPorModo(), [this.config.modo()]: lista });
   }
 
-  async comprobarDireccion(): Promise<void> {
-    const q = this.config.direccion().trim();
-    if (!q || this.comprobandoDireccion()) return;
-    this.comprobandoDireccion.set(true);
-    this.errorDireccion.set('');
-    try {
-      this.config.ubicacion.set(await this.estado.geocodificar(q));
-    } catch (error) {
-      this.config.ubicacion.set(null);
-      this.errorDireccion.set(String(error instanceof Error ? error.message : error));
-    } finally {
-      this.comprobandoDireccion.set(false);
-    }
-  }
-
+  // ── Coche ───────────────────────────────────────────────────────────────
   async abrirCoche(): Promise<void> {
     if (!this.precios()) {
       try {
@@ -329,6 +539,43 @@ export class PerfilComponent {
 
   costePreview(): string {
     return ((this.consumo ?? 0) * (this.precio ?? 0)).toFixed(2);
+  }
+
+  // ── Cierre ──────────────────────────────────────────────────────────────
+  /** Deja el paso 2 como recién estrenado. Los pasos 3 y 4 no se tocan. */
+  borrarDatos(): void {
+    if (!confirm('¿Borrar la dirección, las especialidades marcadas y el trayecto de este perfil?')) return;
+    this.config.borrarPerfil();
+    this.errorDireccion.set('');
+    this.estado.error.set('');
+    this.consumo = null;
+    this.precio = null;
+    this.fuelType = 'diesel';
+  }
+
+  /**
+   * A qué zona de la pantalla corresponde el error actual.
+   *
+   * Un mensaje de error al pie no sirve de nada si el campo que falla está tres
+   * pantallas más arriba: hay que poder saltar a él. Se resuelve por el texto
+   * para que valga también para los errores que vengan de la API.
+   */
+  zonaDelError(): string | null {
+    const mensaje = this.estado.error().toLowerCase();
+    if (mensaje.includes('especialidad')) return 'zona-especialidades';
+    if (mensaje.includes('direcci') || mensaje.includes('ubicaci')) return 'zona-vivienda';
+    return null;
+  }
+
+  /** Lleva la vista al sitio del fallo y lo señala un momento. */
+  irA(id: string): void {
+    const destino = document.getElementById(id);
+    if (!destino) return;
+    destino.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    this.resaltado.set(id);
+    const foco = destino.querySelector<HTMLElement>('button, input, select, textarea');
+    foco?.focus({ preventScroll: true });
+    window.setTimeout(() => this.resaltado.set(null), 2200);
   }
 
   async continuar(): Promise<void> {

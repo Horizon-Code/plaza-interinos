@@ -2,7 +2,11 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>PlazaInterinos · vacantes docentes ordenadas</title>
+  <!-- Imprescindible: sin esto, los scripts se piden relativos a la ruta y una
+       URL de dos segmentos como /entrar/callback (la del enlace del correo) los
+       busca en /entrar/main.js, que no existe, y la pagina sale en blanco. -->
+  <base href="/" />
+  <title>PlazaInterinos Profesorado · vacantes docentes ordenadas</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Ordena, filtra y elige tus vacantes de interinos docentes en minutos. Elige destino con datos, no con agotamiento." />
 </head>

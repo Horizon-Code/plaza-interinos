@@ -1,9 +1,11 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { ordenarEnCascada } from '@plazainterinos/core';
+import { formatearTrayecto, ordenarEnCascada } from '@plazainterinos/core';
 import { ConfiguracionService } from './configuracion.service';
 import { EstadoService, VacanteEvaluada } from './estado.service';
 import { ExtensionService } from './extension.service';
+import { ListaService } from './lista.service';
+import { AvisoTrayectoComponent } from './aviso-trayecto.component';
 import { TablaVacantesComponent } from './tabla-vacantes.component';
 
 type Vista = 'tarjetas' | 'tabla';
@@ -18,7 +20,7 @@ type Vista = 'tarjetas' | 'tabla';
 @Component({
   selector: 'tp-resultado',
   standalone: true,
-  imports: [TablaVacantesComponent],
+  imports: [TablaVacantesComponent, AvisoTrayectoComponent],
   template: `
     @if (estado.resultado()) {
       <h1>Tu lista, explicada</h1>
@@ -41,22 +43,20 @@ type Vista = 'tarjetas' | 'tabla';
       </div>
 
       @if (vista() === 'tabla') {
-        <h2>Recomendadas</h2>
-        @if (recomendadas().length) {
-          <tp-tabla-vacantes [filas]="recomendadas()" />
-        } @else { <p>Ninguna plaza cumple todo tu perfil sin avisos.</p> }
-
-        <h2>Posibles, con advertencias</h2>
-        @if (conAvisos().length) {
-          <tp-tabla-vacantes [filas]="conAvisos()" />
-        } @else { <p>Sin plazas en este bloque.</p> }
+        <div class="fila-aviso" style="margin:14px 0 8px;"><tp-aviso-trayecto /></div>
+        <tp-tabla-vacantes [filas]="listaFinal()" (reordenada)="ordenCambiado()" />
 
         <h2>Excluidas y por qué</h2>
-        @if (excluidas().length) {
-          <tp-tabla-vacantes [filas]="excluidas()" [seleccionable]="false" />
-        } @else { <p>Ninguna plaza queda fuera.</p> }
+        @for (e of excluidas(); track e.vacancyId) {
+          <div class="card">
+            <div class="fila">
+              <span class="tachado">{{ e.vacancy.centerName }} — {{ e.vacancy.municipality }}</span>
+              <span class="chip fuera">{{ e.hardExclusionReasons[0].message }}</span>
+            </div>
+          </div>
+        } @empty { <p>Ninguna plaza queda fuera.</p> }
       } @else {
-        <h2>Recomendadas</h2>
+        <div class="fila-aviso"><h2>Recomendadas</h2><tp-aviso-trayecto /></div>
         @for (e of recomendadas(); track e.vacancyId) {
           <div class="card">
             <div class="fila">
@@ -119,8 +119,11 @@ type Vista = 'tarjetas' | 'tabla';
       }
 
       <div style="margin-top:26px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-        <button (click)="comprobar()">Comprobar antes de enviar</button>
-        <button class="secundario" (click)="exportarCsv()">Exportar CSV</button>
+        <button (click)="intentarContinuar()">Comprobar antes de enviar</button>
+        <button class="secundario" (click)="lista.borrarAnotaciones()"
+                [disabled]="!cuantasNotas()">Borrar anotaciones</button>
+        <button class="secundario" (click)="lista.borrarAvisos()"
+                [disabled]="!cuantosAvisos()">Borrar avisos ⚠</button>
         @switch (ext.estado()) {
           @case ('paddoc_activo') {
             <button (click)="rellenar()">Rellenar en PADDOC</button>
@@ -135,22 +138,60 @@ type Vista = 'tarjetas' | 'tabla';
           }
         }
       </div>
+      @if (confirmando()) {
+        <div class="velo" (click)="confirmando.set(false)"></div>
+        <div class="dialogo" role="dialog" aria-modal="true" aria-labelledby="tit-confirmar">
+          <h2 id="tit-confirmar">Antes de continuar</h2>
+          <p>Tienes plazas marcadas que conviene repasar:</p>
+          @if (conNota().length) {
+            <strong>{{ conNota().length }} con anotación</strong>
+            <ul>
+              @for (e of conNota(); track e.vacancyId) {
+                <li>{{ e.vacancy.centerName }} — <em>{{ lista.anotacion(e.vacancyId) }}</em></li>
+              }
+            </ul>
+          }
+          @if (conAviso().length) {
+            <strong>{{ conAviso().length }} marcadas con aviso ⚠</strong>
+            <ul>
+              @for (e of conAviso(); track e.vacancyId) {
+                <li>{{ e.vacancy.centerName }} — {{ e.vacancy.municipality }}</li>
+              }
+            </ul>
+          }
+          <div class="fila-botones">
+            <button (click)="confirmando.set(false); comprobar()">Continuar igualmente</button>
+            <button class="secundario" (click)="confirmando.set(false)">Volver a la lista</button>
+          </div>
+        </div>
+      }
     } @else if (recalculando()) {
       <p class="progreso"><span class="spinner"></span> Recuperando tu lista…</p>
     } @else {
       <p>Todavía no hay resultados. <a href="/importar">Importa una convocatoria</a> y completa tu perfil.</p>
       @if (estado.error()) { <p class="error">{{ estado.error() }}</p> }
     }
-  `
+  `,
+  styles: [`
+    .velo { position:fixed; inset:0; background:rgba(29,35,33,.45); z-index:10; }
+    .dialogo { position:fixed; z-index:11; top:50%; left:50%; transform:translate(-50%,-50%);
+      width:min(92vw,520px); max-height:80vh; overflow:auto; background:#fff;
+      border-radius:var(--radio); padding:20px 22px; box-shadow:0 12px 40px rgba(0,0,0,.25); }
+    .dialogo h2 { margin-top:0; }
+    .dialogo ul { margin:6px 0 14px; padding-left:20px; font-size:14px; }
+    .dialogo li { margin-bottom:3px; }
+  `]
 })
 export class ResultadoComponent {
   readonly estado = inject(EstadoService);
   readonly config = inject(ConfiguracionService);
   readonly ext = inject(ExtensionService);
+  readonly lista = inject(ListaService);
   private readonly router = inject(Router);
 
   readonly vista = signal<Vista>('tarjetas');
   readonly recalculando = signal(false);
+  readonly confirmando = signal(false);
 
   constructor() {
     // Tras un refresco la lista se recalcula sola: la convocatoria y el perfil
@@ -175,12 +216,40 @@ export class ResultadoComponent {
 
   private ordenar(filas: VacanteEvaluada[] | undefined): VacanteEvaluada[] {
     if (!filas) return [];
-    return ordenarEnCascada(filas, this.config.cascada(), this.ordenEspecialidades());
+    return ordenarEnCascada(filas, this.config.cascada(), this.ordenEspecialidades(), this.config.ordenProvincias(), this.config.ordenVoluntarias(), this.config.modo());
   }
 
   readonly recomendadas = computed(() => this.ordenar(this.estado.resultado()?.recommended));
   readonly conAvisos = computed(() => this.ordenar(this.estado.resultado()?.withWarnings));
   readonly excluidas = computed(() => this.ordenar(this.estado.resultado()?.excluded));
+
+  /**
+   * La lista que el usuario ajusta y exporta: recomendadas y con avisos, en la
+   * cascada del paso 4, y encima el orden manual de esta pantalla, que manda.
+   */
+  readonly listaFinal = computed(() =>
+    this.lista.componer([...this.recomendadas(), ...this.conAvisos()], this.excluidas())
+  );
+
+  readonly conNota = computed(() =>
+    this.listaFinal().filter(e => !!this.lista.anotacion(e.vacancyId))
+  );
+  readonly conAviso = computed(() =>
+    this.listaFinal().filter(e => this.lista.tieneAviso(e.vacancyId))
+  );
+  readonly cuantasNotas = computed(() => this.conNota().length);
+  readonly cuantosAvisos = computed(() => this.conAviso().length);
+
+  /** Al reordenar a mano se fija el orden completo, no solo la fila movida. */
+  ordenCambiado(): void {
+    this.lista.fijarOrden(this.listaFinal().map(e => e.vacancyId));
+  }
+
+  /** SCRUM-25: si hay notas o avisos, se avisa antes de pasar a Comprobación. */
+  intentarContinuar(): void {
+    if (this.cuantasNotas() || this.cuantosAvisos()) this.confirmando.set(true);
+    else void this.comprobar();
+  }
 
   readonly descripcionOrden = computed(() => {
     const como: Record<string, string> = {
@@ -203,8 +272,7 @@ export class ResultadoComponent {
   }
 
   trayecto(e: VacanteEvaluada): string {
-    if (e.travelMinutes == null) return 'distancia sin calcular';
-    const base = `${e.travelMinutes} min · ${e.distanceKm} km`;
+    const base = formatearTrayecto(e);
     if (e.dailyCostEur == null) return base;
     const euros = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(e.dailyCostEur);
     return `${base} · ≈ ${euros} ida y vuelta/día`;
@@ -213,34 +281,6 @@ export class ResultadoComponent {
   fuente(e: VacanteEvaluada): string | null {
     const conFuente = [...e.hardExclusionReasons, ...e.warnings].find(r => r.sourceText);
     return conFuente?.sourceText ?? null;
-  }
-
-  exportarCsv(): void {
-    const filas = [...this.recomendadas(), ...this.conAvisos()];
-    if (!filas.length) return;
-    const lineas = ['orden;centro;localidad;especialidad;jornada;tipo;distancia_km;minutos;coste_eur_dia;avisos'];
-    filas.forEach((e, i) => {
-      const v = e.vacancy;
-      lineas.push([
-        i + 1,
-        v.centerName ?? '',
-        v.municipality ?? '',
-        v.specialtyName ?? '',
-        v.workload != null ? Math.round(v.workload * 100) + '%' : '',
-        v.voluntary ? 'voluntaria' : 'obligatoria',
-        e.distanceKm ?? '',
-        e.travelMinutes ?? '',
-        e.dailyCostEur ?? '',
-        e.warnings.map(w => w.message).join(' | ')
-      ].join(';'));
-    });
-    const blob = new Blob([lineas.join('\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'plazainterinos-lista.csv';
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   async comprobar(): Promise<void> {

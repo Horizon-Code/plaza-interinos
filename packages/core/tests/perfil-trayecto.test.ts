@@ -235,3 +235,24 @@ describe('Bandas trayecto → jornada', () => {
     expect(r.hardExclusionReasons.some(x => x.reasonCode === 'workload-band-mismatch')).toBe(false);
   });
 });
+
+describe('rutas de carretera ausentes o inválidas', () => {
+  it('una banda de jornada necesita revisión aunque no haya máximo general', () => {
+    const e = evaluateVacancy(vacante(), perfil({
+      travelWorkloadBands: [{ fromTravel: 0, toTravel: 45, minWorkload: 0.5, maxWorkload: 1 }]
+    }), { travelEstimator: { estimate: () => undefined } });
+    expect(e.distanceKm).toBeUndefined();
+    expect(e.travelMinutes).toBeUndefined();
+    expect(e.requiresManualReview).toBe(true);
+    expect(e.warnings.some(w => w.reasonCode === 'distance-unknown')).toBe(true);
+  });
+
+  it('no filtra ni calcula combustible con rutas inválidas', () => {
+    const e = evaluateVacancy(vacante(), perfil({ maxTravelMinutes: 45,
+      car: { fuelType: 'gasolina', consumptionLper100: 6, fuelPricePerLiter: 1.5 }
+    }), { travelEstimator: { estimate: () => ({ distanceKm: NaN, travelMinutes: -1 }) } });
+    expect(e.distanceKm).toBeUndefined();
+    expect(e.dailyCostEur).toBeUndefined();
+    expect(e.requiresManualReview).toBe(true);
+  });
+});

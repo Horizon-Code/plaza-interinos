@@ -15,11 +15,12 @@ export const PASOS: Paso[] = [
   { numero: 3, nombre: 'Filtrar', ruta: '/filtrar', opcional: true },
   { numero: 4, nombre: 'Ordenar', ruta: '/ordenar', opcional: true },
   { numero: 5, nombre: 'Lista', ruta: '/resultado' },
-  { numero: 6, nombre: 'Comprobación', ruta: '/comprobar' }
+  { numero: 6, nombre: 'Comprobación', ruta: '/comprobar' },
+  { numero: 7, nombre: 'Final', ruta: '/final' }
 ];
 
 /**
- * Barra de pasos (punto 3). Es un stepper, no un breadcrumb: seis fases de una
+ * Barra de pasos (punto 3). Es un stepper, no un breadcrumb: siete fases de una
  * secuencia lineal, no una jerarquía.
  *
  * Solo se puede volver atrás. Saltar hacia delante llevaría, por ejemplo, a una

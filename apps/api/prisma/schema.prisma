@@ -11,15 +11,38 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String?
-  createdAt DateTime @default(now())
+  id    String @id @default(cuid())
+  email String @unique
+
+  /// Identificador estable de Google: el correo de una cuenta puede cambiar y
+  /// esto no. Es por lo que se busca al entrar; el correo solo sirve para
+  /// enlazar la primera vez con una cuenta que ya existiera.
+  googleId String? @unique
+
+  // Nunca se ha llegado a guardar ninguna contrasena: antes se entraba por
+  // enlace magico y ahora con Google. Se deja por las cuentas ya creadas.
+  password    String?
+  name        String?
+  createdAt   DateTime  @default(now())
+  lastLoginAt DateTime?
 
   profiles      Profile[]
   convocatorias Convocatoria[]
   payments      Payment[]
+}
+
+/// Enlace de acceso enviado por correo. Guarda solo el hash del token: si
+/// alguien lee la tabla, no puede entrar con lo que ve. Un solo uso y caduca.
+model LoginToken {
+  id        String    @id @default(cuid())
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
 }
 
 model Profile {
@@ -52,40 +75,40 @@ model Profile {
   acceptsLongTerm        Boolean @default(true)
 
   // Listas serializadas como JSON (arrays de strings / objetos)
-  specialties            Json
-  acceptedLanguages      Json @default("[]")
-  excludedPrograms       Json @default("[]")
-  excludedTags           Json @default("[]")
-  preferredMunicipalities Json @default("[]")
-  excludedMunicipalities Json @default("[]")
-  preferredCenters       Json @default("[]")
-  excludedCenters        Json @default("[]")
-  rankingWeights         Json?
-  workloadTravelTiers    Json @default("[]")
-  travelWorkloadBands    Json @default("[]")
-  conditionAccepts       Json @default("{}")
-  conditionTravelLimits  Json @default("{}")
+  specialties             Json
+  acceptedLanguages       Json  @default("[]")
+  excludedPrograms        Json  @default("[]")
+  excludedTags            Json  @default("[]")
+  preferredMunicipalities Json  @default("[]")
+  excludedMunicipalities  Json  @default("[]")
+  preferredCenters        Json  @default("[]")
+  excludedCenters         Json  @default("[]")
+  rankingWeights          Json?
+  workloadTravelTiers     Json  @default("[]")
+  travelWorkloadBands     Json  @default("[]")
+  conditionAccepts        Json  @default("{}")
+  conditionTravelLimits   Json  @default("{}")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Convocatoria {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  community   String   @default("aragon")
-  sourceName  String?
-  parserVersion String @default("aragon_v1")
-  createdAt   DateTime @default(now())
+  community     String   @default("aragon")
+  sourceName    String?
+  parserVersion String   @default("aragon_v1")
+  createdAt     DateTime @default(now())
 
   vacancies   Vacancy[]
   evaluations Evaluation[]
 }
 
 model Vacancy {
-  id             String @id @default(cuid())
+  id             String       @id @default(cuid())
   convocatoriaId String
   convocatoria   Convocatoria @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
 
@@ -99,14 +122,14 @@ model Vacancy {
   centerName    String?
   centerAddress String?
 
-  workload      Float?
-  scheduleType  String?
-  voluntary     Boolean @default(false)
-  durationType  String?
+  workload     Float?
+  scheduleType String?
+  voluntary    Boolean @default(false)
+  durationType String?
 
   additionalInfoRaw String?
-  requirements      Json   @default("[]")
-  tags              Json   @default("[]")
+  requirements      Json    @default("[]")
+  tags              Json    @default("[]")
 
   latitude   Float?
   longitude  Float?
@@ -117,11 +140,11 @@ model Vacancy {
 }
 
 model Evaluation {
-  id             String @id @default(cuid())
+  id             String       @id @default(cuid())
   convocatoriaId String
   convocatoria   Convocatoria @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
   vacancyId      String
-  vacancy        Vacancy @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
+  vacancy        Vacancy      @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
 
   included             Boolean
   score                Float   @default(0)
@@ -139,17 +162,64 @@ model Evaluation {
 }
 
 model Payment {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Pago por campaña (no suscripción): el dolor es estacional.
-  concept   String   @default("campana")
+  concept     String  @default("campana")
   amountCents Int
-  currency  String   @default("EUR")
-  status    String   @default("pending") // pending | paid | refunded
-  provider  String   @default("stripe")
+  currency    String  @default("EUR")
+  status      String  @default("pending") // pending | paid | refunded
+  provider    String  @default("stripe")
   providerRef String?
 
   createdAt DateTime @default(now())
+}
+
+// ── Cachés de servicios externos ──────────────────────────────────────────
+//
+// Nominatim admite una petición por segundo y OSRM público no da garantías:
+// con varios usuarios a la vez, el camino corto es que nos bloqueen y que los
+// trayectos empiecen a salir "sin calcular". Guardar lo que ya preguntamos
+// quita casi todas las peticiones, porque los usuarios repiten centros: los 961
+// de Aragón son los mismos para todo el mundo.
+//
+// Vive en la base de datos y no en memoria porque la API se apaga sola cuando
+// no hay tráfico (`auto_stop_machines`), así que una caché en memoria se pierde
+// entera varias veces al día y no sobreviviría tampoco a una segunda instancia.
+
+/// Un trayecto por carretera entre dos puntos, tal y como lo devolvió el router.
+model RutaCache {
+  id String @id @default(cuid())
+
+  /// `clavePunto` del origen y del destino: "41.63221,-0.88871".
+  origen  String
+  destino String
+
+  // Se guarda el dato CRUDO del router, no los minutos ya corregidos: la
+  // corrección se calibra y puede cambiar, y si la caché guardara el resultado
+  // ya corregido habría que tirarla entera en cada recalibrado.
+  metros   Int
+  segundos Int
+
+  creadoEn DateTime @default(now())
+
+  @@unique([origen, destino])
+  @@index([creadoEn])
+}
+
+/// Una dirección resuelta a coordenadas, o unas coordenadas resueltas a dirección.
+model GeocodeCache {
+  id String @id @default(cuid())
+
+  /// Consulta normalizada. Las inversas llevan el prefijo "rev:" para no
+  /// chocar con una búsqueda por texto que se escribiera igual.
+  consulta String @unique
+
+  lat      Float
+  lng      Float
+  etiqueta String
+
+  creadoEn DateTime @default(now())
 }

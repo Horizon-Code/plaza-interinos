@@ -1,0 +1,5 @@
+# El enlace del correo entra directo en /entrar/callback, que no es un fichero
+# sino una ruta de Angular. Sin este fallback, Cloudflare Pages devuelve 404 y
+# el login por enlace magico no funciona en produccion.
+# /api/* lo atiende antes la Pages Function functions/api/[[path]].ts.
+/*    /index.html   200

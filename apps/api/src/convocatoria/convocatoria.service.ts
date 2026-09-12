@@ -6,6 +6,7 @@ import {
 } from '@plazainterinos/core';
 import type { VacancyRequirement } from '@plazainterinos/core';
 import { PrismaService } from '../prisma/prisma.service';
+import { exigirConvocatoriaPropia } from '../auth/propiedad';
 import { ImportDto } from './dto/import.dto';
 
 @Injectable()
@@ -62,7 +63,8 @@ export class ConvocatoriaService {
   }
 
   /** Condiciones detectadas de una convocatoria ya importada (para recargas de la web). */
-  async conditions(convocatoriaId: string) {
+  async conditions(userId: string, convocatoriaId: string) {
+    await exigirConvocatoriaPropia(this.prisma, userId, convocatoriaId);
     const rows = await this.prisma.vacancy.findMany({
       where: { convocatoriaId },
       select: { requirements: true }
@@ -103,7 +105,8 @@ export class ConvocatoriaService {
     };
   }
 
-  listVacancies(convocatoriaId: string) {
+  async listVacancies(userId: string, convocatoriaId: string) {
+    await exigirConvocatoriaPropia(this.prisma, userId, convocatoriaId);
     return this.prisma.vacancy.findMany({ where: { convocatoriaId } });
   }
 }

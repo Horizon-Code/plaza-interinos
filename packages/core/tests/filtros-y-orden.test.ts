@@ -204,7 +204,8 @@ describe('orden en cascada', () => {
 
   it('mover un criterio recoloca los demás sin dejar huecos ni repetidos', () => {
     const movida = moverCriterio(ORDEN_POR_DEFECTO, 3, 0);
-    expect(movida.map(c => c.criterio)).toEqual(['voluntary', 'distance', 'specialty', 'workload']);
-    expect(new Set(movida.map(c => c.criterio)).size).toBe(4);
+    expect(movida.map(c => c.criterio)).toEqual(['volGroup', 'workload', 'distance', 'voluntary', 'specialty', 'province', 'duration']);
+    expect(new Set(movida.map(c => c.criterio)).size).toBe(7);
+    expect(ORDEN_POR_DEFECTO[0].criterio).toBe('workload');
   });
 });

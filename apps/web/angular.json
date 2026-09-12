@@ -28,7 +28,10 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
-          "options": { "buildTarget": "web:build:development" }
+          "options": {
+            "buildTarget": "web:build:development",
+            "prebundle": { "exclude": ["@plazainterinos/core"] }
+          }
         }
       }
     }

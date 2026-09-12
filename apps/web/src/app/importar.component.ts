@@ -360,45 +360,69 @@ type Cargando = null | { destino: Destino; fase: string; pagina: number; total: 
         <div class="metrica"><div class="n">{{ resumen.afternoon }}</div><div class="l">con horario de tarde</div></div>
         <div class="metrica"><div class="n">{{ resumen.ambiguous }}</div><div class="l">con información ambigua</div></div>
       </div>
-      <button (click)="continuar()">Continuar con mi perfil</button>
-    }
-
-    <!-- ── Vía de escape avanzada ─────────────────────────────────────────
-         No es un <details> porque su apertura nativa no se puede animar, y
-         aquí se pliega igual que todo lo demás. -->
-    <section class="card avanzado">
-      <button type="button" class="avanzado-cab" [class.cerrado]="!avanzadoAbierto()"
-              [attr.aria-expanded]="avanzadoAbierto()"
-              (click)="avanzadoAbierto.set(!avanzadoAbierto())">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H1a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 2.6 7a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 2.7-1.1V1a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.1 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0 1.1 2.7H23a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" />
-        </svg>
-        <span class="titulo">Opciones avanzadas</span>
-        <span class="senal" aria-hidden="true">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </span>
-      </button>
-      @if (avanzadoAbierto()) {
-        <div class="plegable" animate.enter="despliega" animate.leave="repliega">
-          <div class="contenido">
-            <label for="json-vacantes">Pegar vacantes en JSON</label>
-            <textarea id="json-vacantes" [value]="textoJson()"
-              (input)="textoJson.set($any($event.target).value)"
-              placeholder='[{ "bodyCode": "0590", "specialtyCode": "006", "municipality": "Zaragoza", "additionalInfoRaw": "…" }]'></textarea>
-            <button class="secundario" (click)="importarJson()" [disabled]="!textoJson().trim()">Importar JSON</button>
-          </div>
+      @if (porEspecialidad().length) {
+        <div class="card desglose" animate.enter="aparece">
+          <strong>Vacantes accesibles: {{ totalAccesibles() }}</strong>
+          <table class="tabla-desglose">
+            <thead>
+              <tr><th scope="col">Especialidad</th><th scope="col">Total</th>
+                  <th scope="col">Obligatorias</th><th scope="col">Voluntarias</th></tr>
+            </thead>
+            <tbody>
+              @for (d of porEspecialidad(); track d.codigo) {
+                <tr>
+                  <td>
+                    <span class="chip-esp" [style.background]="d.color.fondo" [style.color]="d.color.texto">
+                      {{ d.nombre }}
+                    </span>
+                  </td>
+                  <td>{{ d.total }}</td>
+                  <td>{{ d.obligatorias }}</td>
+                  <td>{{ d.voluntarias }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
         </div>
       }
-    </section>
+
+      <button (click)="continuar()">Continuar con mi perfil</button>
+    }
   `
 })
 export class ImportarComponent {
   readonly estado = inject(EstadoService);
+
+  /**
+   * Desglose por especialidad (SCRUM-21). Se calcula sobre las vacantes del
+   * aspirante, que es lo que significa "accesibles": las de sus cuerpos y
+   * especialidades, no las 4600 de la convocatoria.
+   *
+   * Se mantienen aunque luego se desactive la especialidad en Perfil: lo que se
+   * detectó en la convocatoria no deja de ser cierto porque cambies de idea.
+   */
+  readonly porEspecialidad = computed(() => {
+    const cuenta = new Map<string, { codigo: string; nombre: string; total: number; obligatorias: number; voluntarias: number }>();
+    for (const v of this.estado.vacantesDelUsuario()) {
+      const codigo = v.specialtyCode ?? '';
+      let fila = cuenta.get(codigo);
+      if (!fila) {
+        fila = { codigo, nombre: v.specialtyName ?? codigo, total: 0, obligatorias: 0, voluntarias: 0 };
+        cuenta.set(codigo, fila);
+      }
+      fila.total++;
+      if (v.voluntary) fila.voluntarias++;
+      else fila.obligatorias++;
+    }
+    return [...cuenta.values()]
+      .sort((a, b) => b.total - a.total)
+      .map(f => ({ ...f, color: colorEspecialidad(f.codigo) }));
+  });
+
+  readonly totalAccesibles = computed(() =>
+    this.porEspecialidad().reduce((n, f) => n + f.total, 0)
+  );
+
   private readonly pdf = inject(PdfService);
   private readonly router = inject(Router);
 
@@ -408,11 +432,9 @@ export class ImportarComponent {
   readonly arrastrandoVacantes = signal(false);
   readonly arrastrandoCandidatos = signal(false);
   readonly issuesVacantes = signal(0);
-  readonly textoJson = signal('');
   readonly seccionAbierta = signal(true);
   readonly abiertoPdf = signal(true);
   readonly abiertoManual = signal(true);
-  readonly avanzadoAbierto = signal(false);
 
   urlVacantes = '';
   urlCandidatos = '';
@@ -679,15 +701,6 @@ export class ImportarComponent {
     }
   }
 
-  async importarJson(): Promise<void> {
-    try {
-      const vacancies = JSON.parse(this.textoJson());
-      await this.estado.importar(vacancies);
-    } catch (error) {
-      this.estado.error.set(error instanceof SyntaxError ? 'El JSON no es válido.' : String(error));
-    }
-  }
-
   continuar(): void {
     this.router.navigate(['/perfil']);
   }
@@ -702,4 +715,22 @@ export class ImportarComponent {
       this.cargando.set(null);
     }
   }
+}
+
+/** Mismos colores que la tabla del paso 5: una especialidad se reconoce igual en toda la app. */
+const PALETA_ESP = [
+  { fondo: '#efe7fa', texto: '#69419a' },
+  { fondo: '#e7f0f7', texto: '#3b6d8c' },
+  { fondo: '#e6f4ed', texto: '#276749' },
+  { fondo: '#fff3d8', texto: '#8a6116' },
+  { fondo: '#fde8e6', texto: '#9b3d33' }
+];
+const FIJOS_ESP: Record<string, number> = { '006': 0, '107': 1 };
+
+function colorEspecialidad(codigo: string): { fondo: string; texto: string } {
+  const fijo = FIJOS_ESP[codigo];
+  if (fijo != null) return PALETA_ESP[fijo];
+  let suma = 0;
+  for (const ch of codigo) suma += ch.charCodeAt(0);
+  return PALETA_ESP[suma % PALETA_ESP.length];
 }

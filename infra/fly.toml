@@ -11,6 +11,13 @@ primary_region = 'cdg'
 
 [env]
   CORS_ORIGIN = 'https://plazainterinos.es'
+  # Base de los enlaces que genera la aplicacion. Antes caia a CORS_ORIGIN por
+  # casualidad; explicito para que tocar uno no rompa el otro.
+  APP_URL = 'https://plazainterinos.es'
+  # Identificador publico de la app en Google. No es un secreto: viaja en cada
+  # peticion de acceso y la propia API lo sirve al navegador. Por eso va aqui y
+  # no en `fly secrets`. Sin el, nadie puede entrar.
+  GOOGLE_CLIENT_ID = '962674203904-8238mb9hni25hd1agublufuos6a7nl4k.apps.googleusercontent.com'
   PORT = '3000'
 
 [http_service]

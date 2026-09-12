@@ -234,15 +234,27 @@ API:
 curl http://localhost:3000/api/health
 ```
 
-Registro a traves del proxy del frontend:
+Peticion de enlace de acceso a traves del proxy del frontend:
 
 ```bash
-curl -i -X POST http://localhost:4200/api/auth/register \
+curl -i -X POST http://localhost:4200/api/auth/magic-link \
   -H 'Content-Type: application/json' \
-  --data '{"email":"debug@example.com","password":"demo12345","name":"Debug","accessCode":"test"}'
+  --data '{"email":"debug@example.com"}'
 ```
 
-Debe devolver `201 Created` si la API, el proxy y PostgreSQL estan bien conectados.
+Debe devolver `200 OK` con `{"enviado":true}` si la API, el proxy y PostgreSQL
+estan bien conectados.
+
+Sin `RESEND_API_KEY` en `apps/api/.env` no se envia ningun correo: el enlace
+aparece en el log de la API, que es como se prueba el login en local.
+
+```text
+WARN [MailService] RESEND_API_KEY sin configurar. Enlace de acceso para debug@example.com:
+
+  http://localhost:4200/entrar/callback?token=...
+```
+
+Copia ese enlace en el navegador y entras.
 
 ## Problemas comunes
 
@@ -252,13 +264,21 @@ Suele pasar cuando se ejecuta con Node 18. Usa Node 22.22.3 o superior.
 
 ### `Can't reach database server at /var/run/postgresql:5432`
 
-La `DATABASE_URL` apunta al socket local de PostgreSQL, pero no hay servidor escuchando ahi. Cambia `apps/api/.env` para apuntar al PostgreSQL disponible, por ejemplo:
+La `DATABASE_URL` apunta a un PostgreSQL que no esta escuchando. Cambia
+`apps/api/.env` para apuntar al que si lo esta. Con el PostgreSQL del propio WSL,
+por socket:
+
+```env
+DATABASE_URL="postgresql://TU_USUARIO@localhost:5432/plazainterinos?schema=public&host=/var/run/postgresql"
+```
+
+Con el de Docker publicado en el 55432:
 
 ```env
 DATABASE_URL="postgresql://plazainterinos:plazainterinos@127.0.0.1:55432/plazainterinos?schema=public"
 ```
 
-### `502 Bad Gateway` o `405 Method Not Allowed` en `/api/auth/register`
+### `502 Bad Gateway` o `405 Method Not Allowed` en `/api/auth/magic-link`
 
 En local, un `502` lo devuelve el proxy de Angular cuando no puede conectar con la API. Comprueba:
 

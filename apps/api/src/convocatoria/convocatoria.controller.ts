@@ -15,12 +15,12 @@ export class ConvocatoriaController {
   }
 
   @Get(':id/vacancies')
-  vacancies(@Param('id') id: string) {
-    return this.service.listVacancies(id);
+  vacancies(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
+    return this.service.listVacancies(user.sub, id);
   }
 
   @Get(':id/conditions')
-  conditions(@Param('id') id: string) {
-    return this.service.conditions(id);
+  conditions(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
+    return this.service.conditions(user.sub, id);
   }
 }

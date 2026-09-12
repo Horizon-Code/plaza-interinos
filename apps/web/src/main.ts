@@ -1,7 +1,6 @@
 import { bootstrapApplication } from '@angular/platform-browser';
 import { Component, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { provideRouter, RouterLink, RouterLinkActive, RouterOutlet, Routes } from '@angular/router';
+import { provideRouter, Router, RouterLink, RouterOutlet, Routes } from '@angular/router';
 import { provideZonelessChangeDetection, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { ImportarComponent } from './app/importar.component';
 import { PerfilComponent } from './app/perfil.component';
@@ -9,54 +8,50 @@ import { FiltrarComponent } from './app/filtrar.component';
 import { OrdenarComponent } from './app/ordenar.component';
 import { ResultadoComponent } from './app/resultado.component';
 import { ComprobarComponent } from './app/comprobar.component';
+import { FinalComponent } from './app/final.component';
 import { ExtensionComponent } from './app/extension.component';
 import { ExtensionService } from './app/extension.service';
 import { EstadoService } from './app/estado.service';
 import { ConfiguracionService } from './app/configuracion.service';
 import { PasosComponent } from './app/pasos.component';
 import { SelectorComunidadComponent } from './app/selector-comunidad.component';
+import { EntrarComponent } from './app/entrar.component';
+import { LegalComponent } from './app/legal.component';
+
+/**
+ * Sin sesión no se entra a ningún paso: se decidió pedir cuenta desde la puerta,
+ * así que el guardián vive aquí y no repartido por cada componente.
+ */
+const conSesion = () => {
+  if (inject(EstadoService).sesionIniciada()) return true;
+  return inject(Router).createUrlTree(['/entrar']);
+};
 
 const routes: Routes = [
+  { path: 'entrar', component: EntrarComponent },
+  // Publicas a proposito: quien aun no ha entrado tiene derecho a leer que
+  // vamos a hacer con sus datos ANTES de dar su correo.
+  { path: 'privacidad', component: LegalComponent },
+  { path: 'aviso-legal', component: LegalComponent },
   { path: '', redirectTo: 'importar', pathMatch: 'full' },
-  { path: 'importar', component: ImportarComponent },
-  { path: 'perfil', component: PerfilComponent },
-  { path: 'filtrar', component: FiltrarComponent },
-  { path: 'ordenar', component: OrdenarComponent },
-  { path: 'resultado', component: ResultadoComponent },
-  { path: 'comprobar', component: ComprobarComponent },
-  { path: 'extension', component: ExtensionComponent }
+  { path: 'importar', component: ImportarComponent, canActivate: [conSesion] },
+  { path: 'perfil', component: PerfilComponent, canActivate: [conSesion] },
+  { path: 'filtrar', component: FiltrarComponent, canActivate: [conSesion] },
+  { path: 'ordenar', component: OrdenarComponent, canActivate: [conSesion] },
+  { path: 'resultado', component: ResultadoComponent, canActivate: [conSesion] },
+  { path: 'comprobar', component: ComprobarComponent, canActivate: [conSesion] },
+  { path: 'final', component: FinalComponent, canActivate: [conSesion] },
+  { path: 'extension', component: ExtensionComponent, canActivate: [conSesion] }
 ];
 
 @Component({
   selector: 'pi-root',
   standalone: true,
-  imports: [FormsModule, RouterOutlet, RouterLink, PasosComponent, SelectorComunidadComponent],
+  imports: [RouterOutlet, RouterLink, PasosComponent, SelectorComunidadComponent],
   template: `
-    @if (!estado.accesoAutorizado()) {
+    @if (!estado.sesionIniciada()) {
       <main class="acceso">
-        <section class="card acceso-card">
-          <div class="marca acceso-marca">PlazaInterinos</div>
-          <h1>Acceso privado</h1>
-          <p class="lead">Estamos preparando la apertura. Entra solo con la clave de acceso.</p>
-          <form (ngSubmit)="entrar()">
-            <label for="access-code">Clave de acceso</label>
-            <input
-              id="access-code"
-              type="password"
-              name="accessCode"
-              autocomplete="off"
-              [(ngModel)]="codigo"
-              [disabled]="cargando()"
-            />
-            @if (error()) {
-              <p class="error">{{ error() }}</p>
-            }
-            <button type="submit" [disabled]="cargando() || !codigo.trim()">
-              @if (cargando()) { <span class="spinner"></span> Entrando… }
-              @else { Entrar }
-            </button>
-          </form>
-        </section>
+        <router-outlet />
       </main>
     } @else {
       <main>
@@ -67,8 +62,13 @@ const routes: Routes = [
               <path d="M5 0h8a7 7 0 0 1 0 14H5z" />
             </svg>
             PlazaInterinos
+            <span class="ambito">Profesorado</span>
           </div>
           <pi-selector-comunidad />
+          <span class="sesion">
+            <span class="correo" title="{{ estado.emailSesion() }}">{{ estado.emailSesion() }}</span>
+            <button type="button" class="enlace" (click)="salir()">Salir</button>
+          </span>
           <span class="proximamente">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M12 2l1.8 5.4L19 9l-5.2 1.6L12 16l-1.8-5.4L5 9l5.2-1.6z" />
@@ -99,6 +99,10 @@ const routes: Routes = [
             <span class="nota">Borra el perfil, los filtros y el orden guardados.</span>
           </button>
         </p>
+        <footer class="pie-legal">
+          <a routerLink="/privacidad">Privacidad</a>
+          <a routerLink="/aviso-legal">Aviso legal</a>
+        </footer>
       </main>
     }
   `
@@ -107,9 +111,6 @@ class AppComponent {
   readonly ext = inject(ExtensionService);
   readonly estado = inject(EstadoService);
   private readonly config = inject(ConfiguracionService);
-  readonly cargando = signal(false);
-  readonly error = signal('');
-  codigo = '';
 
   constructor() {
     this.ext.iniciar();
@@ -121,15 +122,9 @@ class AppComponent {
     }
   }
 
-  async entrar(): Promise<void> {
-    this.error.set('');
-    this.cargando.set(true);
-    try {
-      await this.estado.desbloquear(this.codigo);
-    } catch (e) {
-      this.error.set(e instanceof Error ? e.message : 'No se ha podido validar la clave.');
-    } finally {
-      this.cargando.set(false);
+  salir(): void {
+    if (confirm('¿Cerrar sesión? Se borrarán de este navegador la convocatoria y el perfil guardados.')) {
+      this.estado.cerrarSesion();
     }
   }
 }

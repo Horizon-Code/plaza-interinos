@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "scripts": {
     "build": "nest build",
+    "test": "npm run build && node --test tests/*.test.cjs",
     "start": "node dist/main.js",
     "dev": "nest start --watch",
     "prisma:generate": "prisma generate",
@@ -12,15 +13,16 @@
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
-    "@nestjs/core": "^11.0.0",
     "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.0",
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/platform-fastify": "^11.0.0",
-    "@prisma/client": "^6.0.0",
     "@plazainterinos/core": "0.1.0",
+    "@prisma/client": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
+    "google-auth-library": "^11.0.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "stripe": "^17.0.0"

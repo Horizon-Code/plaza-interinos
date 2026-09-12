@@ -25,6 +25,8 @@ import type { PageLines } from './lineas.js';
 /** Objeto compatible con el payload de POST /api/convocatoria/import. */
 export interface VacanteImportada {
   id: string;
+  /** Horas semanales de la ficha ("9:00 horas"); ausente si el PDF no las da. */
+  horas?: number;
   bodyCode: string;
   bodyName: string;
   specialtyCode: string;
@@ -35,6 +37,13 @@ export interface VacanteImportada {
   province: string;
   workload?: number;
   voluntary: boolean;
+  /**
+   * Columna "- Causa -" de la ficha, literal ("De Cupo Sin titular",
+   * "De Plantilla Definitiva Sin Titular", "Comisión Servicio docente
+   * (reserva titular)"). Se conserva tal cual porque es la única fuente de la
+   * condición real de la vacante: no es información adicional ni asignatura.
+   */
+  causa?: string;
   durationType?: 'long_term';
   additionalInfoRaw?: string;
   requirements: VacancyRequirement[];
@@ -427,7 +436,9 @@ function finalizarFicha(
       municipality: ficha.municipality!,
       province: ficha.province!,
       workload,
+      ...(ficha.horas != null ? { horas: ficha.horas } : {}),
       voluntary: ficha.voluntary ?? false,
+      ...(ficha.causa ? { causa: ficha.causa } : {}),
       ...(ficha.largaDuracion ? { durationType: 'long_term' as const } : {}),
       ...(info ? { additionalInfoRaw: info } : {}),
       requirements,

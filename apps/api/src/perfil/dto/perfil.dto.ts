@@ -1,10 +1,11 @@
-import { IsArray, IsBoolean, IsIn, IsNumber, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsNumber, IsObject, IsOptional, IsString, IsLatitude, IsLongitude, Min, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class HomeLocationDto {
   @IsOptional() @IsString() address?: string;
   @IsOptional() @IsString() municipality?: string;
-  @IsOptional() @IsNumber() latitude?: number;
-  @IsOptional() @IsNumber() longitude?: number;
+  @IsOptional() @IsNumber() @IsLatitude() latitude?: number;
+  @IsOptional() @IsNumber() @IsLongitude() longitude?: number;
 }
 
 export class CarDto {
@@ -15,10 +16,10 @@ export class CarDto {
 
 export class PerfilDto {
   @IsOptional() @IsString() name?: string;
-  @IsOptional() homeLocation?: HomeLocationDto;
+  @IsOptional() @ValidateNested() @Type(() => HomeLocationDto) homeLocation?: HomeLocationDto;
   @IsArray() specialties: unknown[];
-  @IsOptional() @IsNumber() maxDistanceKm?: number;
-  @IsOptional() @IsNumber() maxTravelMinutes?: number;
+  @IsOptional() @IsNumber() @Min(0) maxDistanceKm?: number;
+  @IsOptional() @IsNumber() @Min(0) maxTravelMinutes?: number;
   @IsBoolean() acceptsPartialWorkload: boolean;
   @IsOptional() @IsNumber() minimumWorkload?: number;
   @IsBoolean() acceptsVoluntary: boolean;

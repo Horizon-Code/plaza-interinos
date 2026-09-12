@@ -38,6 +38,36 @@ main.acceso {
 .acceso-marca { margin-bottom: 16px; }
 .acceso form { display: grid; gap: 12px; }
 .acceso button { width: 100%; margin-top: 2px; }
+.nota-acceso {
+  font-size: 13px; line-height: 1.6; color: var(--tinta-suave);
+  margin: 14px 0 0;
+}
+.acceso .secundario { margin-top: 12px; }
+/* Atajo de desarrollo: se marca en amarillo para que nadie lo confunda con
+   parte de la aplicación de verdad. */
+.enlace-desarrollo {
+  background: var(--aviso-bg); border: 1px solid #e5d3a8;
+  border-radius: 8px; padding: 12px 14px; margin: 16px 0 0;
+  font-size: 13px; line-height: 1.6; color: var(--aviso);
+}
+.enlace-desarrollo a { display: block; margin-top: 6px; font-weight: 700; color: var(--pizarra); }
+
+/* Quién está dentro, en la cabecera. El correo se recorta: hay direcciones
+   institucionales largas que si no desmontan la fila entera. */
+.sesion {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12.5px; color: var(--tinta-suave);
+  margin-left: auto;
+}
+.sesion .correo {
+  max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sesion .enlace {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--pizarra); font-size: 12.5px; font-weight: 600;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.sesion .enlace:hover { color: var(--pizarra-oscura); }
 
 h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
 h2 { font-size: 19px; font-weight: 600; margin: 28px 0 10px; }
@@ -73,9 +103,6 @@ button.secundario:hover { background: #ecefe9; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 :focus-visible { outline: 2px solid var(--acierto); outline-offset: 2px; }
-/* Los rangos dobles ya marcan el foco en la propia bolita: un recuadro alrededor
-   de toda la pista sobraría. */
-.rango-doble input[type='range']:focus-visible { outline: none; }
 
 input[type="text"], input[type="number"], input[type="password"], input[type="url"],
 textarea, select {
@@ -103,6 +130,34 @@ label { font-size: 14px; font-weight: 600; display: block; margin: 12px 0 4px; }
 .chip.aviso { background: var(--aviso-bg); color: var(--aviso); }
 .chip.fuera { background: var(--descarte-bg); color: var(--descarte); }
 .chip.neutro { background: #edece6; color: var(--tinta-suave); }
+
+/* Aviso de que los minutos son estimados. Comparte la píldora de `.chip` pero
+   lleva icono, así que necesita ser flex y alinear el SVG con el texto. */
+.chip-aviso {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--aviso-bg);
+  color: var(--aviso);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+  cursor: help;
+}
+
+/* El aviso viaja en la fila del encabezado de la lista, pegado al borde
+   derecho: el mismo eje que la columna de tiempos de las tarjetas y la tabla.
+   El encabezado conserva sus propios márgenes, así el ritmo vertical no cambia.
+   Si no cabe, el aviso cae debajo en vez de apretar el título. */
+.fila-aviso {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.fila-aviso > tp-aviso-trayecto { margin-left: auto; }
 
 .fuente {
   font-size: 13px;
@@ -147,13 +202,16 @@ label { font-size: 14px; font-weight: 600; display: block; margin: 12px 0 4px; }
   position: relative;
   text-align: center;
 }
-/* Conector entre círculos: se pinta a la izquierda de cada paso menos el primero. */
+/* Conector entre círculos: se pinta a la izquierda de cada paso menos el primero.
+   Se detiene 4 px antes de cada círculo (17 de radio + 4 de aire) en vez de ir
+   de centro a centro: yendo de centro a centro, la raya de un paso se dibuja
+   ENCIMA del círculo del paso anterior, porque ese círculo se pinta antes. */
 .stepper .paso + .paso::before {
   content: '';
   position: absolute;
   top: 15px;
-  right: 50%;
-  left: -50%;
+  right: calc(50% + 21px);
+  left: calc(-50% + 21px);
   height: 2px;
   background: var(--linea);
 }
@@ -162,6 +220,8 @@ label { font-size: 14px; font-weight: 600; display: block; margin: 12px 0 4px; }
 
 .stepper .circulo {
   position: relative;
+  /* Por encima del conector pase lo que pase con el orden de pintado. */
+  z-index: 1;
   width: 30px;
   height: 30px;
   padding: 0;
@@ -211,7 +271,11 @@ label { font-size: 14px; font-weight: 600; display: block; margin: 12px 0 4px; }
 @media (max-width: 430px) {
   .stepper .etiqueta { font-size: 10.5px; }
   .stepper .circulo { width: 26px; height: 26px; font-size: 12.5px; }
-  .stepper .paso + .paso::before { top: 13px; }
+  .stepper .paso + .paso::before {
+    top: 13px;
+    right: calc(50% + 19px);
+    left: calc(-50% + 19px);
+  }
 }
 
 /* Pasos opcionales: el mismo aviso en el título de la pantalla. */
@@ -267,6 +331,14 @@ label { font-size: 14px; font-weight: 600; display: block; margin: 12px 0 4px; }
   font-size: 21px; font-weight: 700; color: var(--pizarra); letter-spacing: -0.02em;
 }
 .marca svg { flex: none; }
+/* Distintivo de ámbito: la aplicación es solo para vacantes de profesorado. */
+.marca .ambito {
+  align-self: center;
+  background: var(--pizarra); color: var(--tiza);
+  border-radius: 999px; padding: 2px 10px;
+  font-size: 11px; font-weight: 700; line-height: 1.7;
+  letter-spacing: 0.09em; text-transform: uppercase;
+}
 
 /* ── Selector de comunidad ───────────────────────────────────────────── */
 .selector-comunidad { position: relative; }
@@ -562,23 +634,6 @@ label { font-size: 14px; font-weight: 600; display: block; margin: 12px 0 4px; }
   margin: 10px 0 0;
 }
 
-/* Bloque avanzado: cerrado por defecto y con el mismo aspecto que una sección. */
-.avanzado { padding: 0; overflow: hidden; }
-.avanzado-cab {
-  display: flex; align-items: center; gap: 10px;
-  width: 100%;
-  padding: 14px 18px;
-  border: none; border-radius: 0;
-  background: #fff; color: var(--tinta);
-  font: inherit; font-size: 14.5px; font-weight: 600; text-align: left;
-}
-.avanzado-cab:hover { background: #f6f5f0; }
-.avanzado-cab .titulo { flex: 1; }
-.avanzado-cab .senal { color: var(--tinta-suave); line-height: 0; }
-.avanzado-cab .senal svg { transition: transform 0.18s ease; }
-.avanzado-cab:not(.cerrado) .senal svg { transform: rotate(180deg); }
-.avanzado .contenido { padding: 0 18px 18px; }
-
 .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .chip .quitar {
   background: none; border: none; cursor: pointer; padding: 0 0 0 6px;
@@ -608,6 +663,44 @@ label { font-size: 14px; font-weight: 600; display: block; margin: 12px 0 4px; }
 .condicion input[type='number'] { width: 90px; }
 h3 { font-size: 16px; font-weight: 600; margin: 22px 0 6px; }
 
+/* ── Especialidades del aspirante ────────────────────────────────────── */
+/* Solo el nombre y un interruptor: los códigos y el número de orden no ayudan
+   a decidir y llenaban la pantalla del móvil (SCRUM-22). */
+.especialidades { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.especialidades .esp {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #fff;
+  border: 1px solid var(--linea);
+  color: var(--tinta-suave);
+  border-radius: 999px;
+  padding: 9px 16px;
+  font-size: 14.5px;
+  font-weight: 600;
+  min-height: 40px;
+}
+.especialidades .esp:hover { background: #f3f2ec; }
+.especialidades .esp.activa {
+  background: var(--acierto-bg);
+  border-color: var(--acierto);
+  color: var(--acierto);
+}
+.especialidades .esp.activa:hover { background: #dcece3; }
+
+/* ── Vivienda habitual ───────────────────────────────────────────────── */
+.acciones-vivienda { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.acciones-vivienda button { flex: 1 1 150px; min-height: 44px; }
+
+/* ── Borrar solo el perfil (no toca filtros ni orden) ─────────────────── */
+.borrar-perfil {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  margin: 26px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--linea);
+}
+.borrar-perfil button { color: var(--descarte); border-color: var(--linea); }
+.borrar-perfil button:hover { background: var(--descarte-bg); border-color: var(--descarte); }
+.borrar-perfil .nota { font-size: 12.5px; color: var(--tinta-suave); }
+
 /* ── Pestañas de unidad (min / km) ───────────────────────────────────── */
 .tabs {
   display: flex; gap: 4px;
@@ -635,30 +728,20 @@ h3 { font-size: 16px; font-weight: 600; margin: 22px 0 6px; }
 .banda-cab button { margin-left: auto; padding: 2px 9px; font-size: 13px; }
 .banda label { margin: 12px 0 2px; font-size: 13px; font-weight: 500; color: var(--tinta-suave); }
 
-/* Rango de dos extremos: dos inputs superpuestos sobre una pista compartida. */
-.rango-doble { position: relative; height: 30px; }
-.rango-doble .pista,
-.rango-doble .activo { position: absolute; top: 13px; height: 4px; border-radius: 999px; }
-.rango-doble .pista { left: 0; right: 0; background: var(--linea); }
-.rango-doble .activo { background: var(--pizarra); }
-.rango-doble input[type='range'] {
-  position: absolute; top: 0; left: 0;
-  width: 100%; height: 30px; margin: 0;
-  appearance: none; -webkit-appearance: none;
-  background: none; pointer-events: none;
+/* Los extremos de cada banda se escriben, no se arrastran: dos sliders
+   superpuestos eran imposibles de afinar con el dedo en un móvil (SCRUM-22). */
+.campos-banda {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 12px;
 }
-.rango-doble input[type='range']::-webkit-slider-thumb {
-  -webkit-appearance: none; pointer-events: auto;
-  width: 17px; height: 17px; border-radius: 50%;
-  background: #fff; border: 2px solid var(--pizarra); cursor: grab;
-}
-.rango-doble input[type='range']::-moz-range-thumb {
-  pointer-events: auto;
-  width: 13px; height: 13px; border-radius: 50%;
-  background: #fff; border: 2px solid var(--pizarra); cursor: grab;
-}
-.rango-doble input[type='range']:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--acierto); outline-offset: 2px; }
-.rango-doble input[type='range']:focus-visible::-moz-range-thumb { outline: 2px solid var(--acierto); outline-offset: 2px; }
+.campos-banda .campo label { margin: 10px 0 2px; }
+.campos-banda input[type='number'] { font-size: 16px; padding: 10px 12px; }
+
+/* Máximo general: el número y su unidad, sin que el campo ocupe toda la fila. */
+.campo-unidad { display: flex; align-items: center; gap: 10px; }
+.campo-unidad input[type='number'] { width: 110px; font-size: 16px; padding: 10px 12px; }
+.campo-unidad .unidad { color: var(--tinta-suave); font-size: 14px; }
 
 /* Coste del trayecto: mínimo, medio y máximo de la banda. */
 .costes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
@@ -668,24 +751,10 @@ h3 { font-size: 16px; font-weight: 600; margin: 22px 0 6px; }
 dialog.card { border: 1px solid var(--linea); max-width: 420px; }
 dialog::backdrop { background: rgba(30, 41, 33, 0.45); }
 
-/* ── Ordenar: cascada de criterios ───────────────────────────────────── */
-.criterios { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
-.criterio {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid var(--linea);
-  border-radius: var(--radio);
-  padding: 10px 12px;
-  background: #fff;
-}
-.criterio.arrastrando { opacity: 0.45; border-style: dashed; }
-.criterio .asa { cursor: grab; color: var(--tinta-suave); font-size: 18px; line-height: 1; }
-.criterio .posicion { width: 48px; text-align: center; padding: 6px 4px; }
-.criterio .icono { font-size: 18px; }
-.criterio .texto { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.35; }
-.criterio .direccion { font-size: 12.5px; color: var(--tinta-suave); }
-.criterio .invertir { padding: 4px 12px; font-size: 16px; line-height: 1.2; }
+/* La cascada de criterios vive entera en ordenar.component.ts. Aquí había una
+   copia del diseño anterior que seguía activa: su `.criterio { display:flex }`
+   convertía la tarjeta en contenedor flex, la fila interior se encogía al
+   contenido y el toggle nunca llegaba al final de la fila. */
 
 /* ── Lista: conmutador de vista y tabla ──────────────────────────────── */
 .tabs.vistas { max-width: 260px; margin: 18px 0 6px; }
@@ -815,3 +884,38 @@ dialog::backdrop { background: rgba(30, 41, 33, 0.45); }
   }
   .cta button:hover:not(:disabled) { transform: none; }
 }
+
+/* Desglose por especialidad del paso 1 (SCRUM-21). */
+.desglose { margin-top: 14px; }
+.tabla-desglose { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.tabla-desglose th,
+.tabla-desglose td { border-bottom: 1px solid var(--linea); padding: 6px 8px; text-align: left; font-size: 14px; }
+.tabla-desglose th { font-size: 12px; color: var(--tinta-suave); font-weight: 600; }
+.tabla-desglose td:not(:first-child),
+.tabla-desglose th:not(:first-child) { text-align: right; width: 110px; }
+.chip-esp { display: inline-block; padding: 1px 10px; border-radius: 12px; font-weight: 600; font-size: 13px; }
+
+/* Error que te lleva al campo que hay que corregir (perfil). */
+.error-ir { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  cursor: pointer; border: 1px solid var(--descarte); background: var(--descarte-bg);
+  color: var(--descarte); border-radius: var(--radio); padding: 10px 14px; font-size: 15px; }
+.error-ir .ir { margin-left: auto; font-weight: 600; text-decoration: underline; white-space: nowrap; }
+.error-ir .flecha { font-size: 17px; }
+.resaltada { outline: 2px solid var(--descarte); outline-offset: 3px; }
+
+/* Privacidad y aviso legal tienen que estar a un clic desde cualquier pantalla,
+   incluida la de acceso: se leen antes de dar el correo, no despues. */
+.pie-legal {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin: 34px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--linea);
+}
+.pie-legal a {
+  font-size: 13px;
+  color: var(--tinta-suave);
+  text-decoration: none;
+}
+.pie-legal a:hover { text-decoration: underline; }

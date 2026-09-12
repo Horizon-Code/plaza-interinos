@@ -3,9 +3,16 @@ dist/
 .angular/
 out-tsc/
 *.log
+# Cualquier variante de .env lleva credenciales reales. El patron cubre copias
+# de seguridad como `.env.bak-docker`, que si no se cuelan en el repo con un
+# `git add .`; `.env.example` se versiona a proposito y por eso se rescata.
 .env
+.env.*
+!.env.example
 .DS_Store
 __pycache__/
 apps/api/prisma/migrations/dev.db
 .claude/settings.local.json
+# Copias de trabajo del propio repo: 37 MB que no pintan nada en el historial.
+.claude/worktrees/
 apps/web/public/pdf.worker.min.mjs
