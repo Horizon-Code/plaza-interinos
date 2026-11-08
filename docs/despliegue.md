@@ -131,7 +131,13 @@ puede devolver `405 Method Not Allowed`.
 
 ## Desplegar backend en Fly
 
-Desde la raiz del repo:
+**Automatico:** al fusionar en `main` un cambio de `apps/api`, `packages/core` o
+`infra/fly.toml`, la GitHub Action `.github/workflows/deploy-api.yml` despliega
+en Fly. Necesita el secreto `FLY_API_TOKEN` en GitHub
+(`fly tokens create deploy -a plazainterinos-api`). Tambien se puede lanzar a
+mano desde la pestaña Actions → "Desplegar API en Fly" → Run workflow.
+
+**Manual**, desde la raiz del repo:
 
 ```bash
 fly deploy --config infra/fly.toml
