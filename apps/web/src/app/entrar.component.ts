@@ -51,6 +51,12 @@ const SCRIPT_GOOGLE = 'https://accounts.google.com/gsi/client';
 
       <!-- Google dibuja su botón aquí dentro. -->
       <div class="boton-google"></div>
+      @if (preparandoBoton()) {
+        <p role="status" class="estado estado-boton"><span class="spinner"></span> Cargando el acceso con Google…</p>
+      }
+      @if (botonLento()) {
+        <p class="error">Está tardando más de la cuenta. Si usas un bloqueador de anuncios, desactívalo para esta página y recarga.</p>
+      }
 
       @if (cargando()) { <p role="status" class="estado"><span class="spinner"></span> Entrando…</p> }
       @if (error()) { <p class="error">{{ error() }}</p> }
@@ -101,6 +107,7 @@ const SCRIPT_GOOGLE = 'https://accounts.google.com/gsi/client';
     }
 
     .boton-google { display: flex; justify-content: center; min-height: 44px; margin: 24px 0 0; }
+    .estado-boton { justify-content: center; color: var(--texto-suave, #666); }
     .estado { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 12px 0 0; }
     .error { margin: 12px 0 0; }
     .nota-acceso a { color: var(--pizarra); }
@@ -116,6 +123,8 @@ export class EntrarComponent {
   readonly cargando = signal(false);
   readonly error = signal('');
   readonly sinConfigurar = signal(false);
+  readonly preparandoBoton = signal(true);
+  readonly botonLento = signal(false);
 
   private montado = false;
 
@@ -129,10 +138,17 @@ export class EntrarComponent {
     const contenedor = document.querySelector<HTMLElement>('.boton-google');
     if (!contenedor) return;
     this.montado = true;
+    // Sin esto, si Google tarda (o un bloqueador lo frena), el recuadro se
+    // queda vacío y parece roto.
+    const aviso = setTimeout(() => this.botonLento.set(true), 8000);
     try {
       await this.montarBoton(contenedor);
     } catch {
       this.sinConfigurar.set(true);
+    } finally {
+      clearTimeout(aviso);
+      this.preparandoBoton.set(false);
+      this.botonLento.set(false);
     }
   }
 

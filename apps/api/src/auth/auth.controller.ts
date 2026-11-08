@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { GoogleService } from './google.service';
+import { AccesosService } from './accesos.service';
 import { AuthGuard } from './auth.guard';
 import { CurrentUser } from './user.decorator';
 import { LimitePeticiones } from './limite-peticiones';
@@ -15,7 +16,8 @@ const porIp = new LimitePeticiones(20, QUINCE_MINUTOS);
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
-    private readonly google: GoogleService
+    private readonly google: GoogleService,
+    private readonly accesos: AccesosService
   ) {}
 
   /**
@@ -28,14 +30,17 @@ export class AuthController {
    */
   @Post('google')
   @HttpCode(200)
-  entrarConGoogle(@Body() dto: EntrarConGoogleDto, @Req() req: { ip?: string }) {
+  entrarConGoogle(
+    @Body() dto: EntrarConGoogleDto,
+    @Req() req: { ip?: string; headers?: Record<string, string | string[] | undefined> }
+  ) {
     if (!porIp.permite(req.ip ?? 'sin-ip')) {
       throw new HttpException(
         'Demasiados intentos seguidos. Espera unos minutos e inténtalo de nuevo.',
         HttpStatus.TOO_MANY_REQUESTS
       );
     }
-    return this.auth.entrarConGoogle(dto.idToken);
+    return this.auth.entrarConGoogle(dto.idToken, req);
   }
 
   /**
@@ -59,6 +64,16 @@ export class AuthController {
   @UseGuards(AuthGuard)
   yo(@CurrentUser() usuario: { sub: string }) {
     return this.auth.yo(usuario.sub);
+  }
+
+  /**
+   * Historial de accesos: quién ha entrado y cuándo. Solo para los correos de
+   * `ADMIN_EMAILS`. `?dias=7` por defecto, hasta 90 (lo que se conserva).
+   */
+  @Get('accesos')
+  @UseGuards(AuthGuard)
+  historialAccesos(@CurrentUser() user: { sub: string; email: string }, @Query('dias') dias?: string) {
+    return this.accesos.listar(user.email, Number(dias) || 7);
   }
 
   /** Derecho de acceso: tu copia de todo lo que guardamos de ti. */

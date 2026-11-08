@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, UnauthorizedException } from '@n
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { GoogleService } from './google.service';
+import { AccesosService } from './accesos.service';
 
 @Injectable()
 export class AuthService {
@@ -10,7 +11,8 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
-    private readonly google: GoogleService
+    private readonly google: GoogleService,
+    private readonly accesos: AccesosService
   ) {}
 
   /**
@@ -26,7 +28,7 @@ export class AuthService {
    * Enlazar por correo es seguro porque Google ya nos ha dicho que ese correo
    * está verificado: quien llega aquí ha demostrado ser su titular.
    */
-  async entrarConGoogle(idToken: string) {
+  async entrarConGoogle(idToken: string, req?: { ip?: string; headers?: Record<string, string | string[] | undefined> }) {
     const { googleId, email, nombre } = await this.google.verificar(idToken);
 
     const existente =
@@ -44,6 +46,7 @@ export class AuthService {
           data: { email, googleId, name: nombre ?? null, lastLoginAt: new Date() }
         });
 
+    this.accesos.registrarEntrada(user.id, req);
     return this.firmar(user.id, user.email);
   }
 
@@ -76,7 +79,8 @@ export class AuthService {
       where: { id: userId },
       include: {
         profiles: true,
-        convocatorias: { include: { vacancies: true, evaluations: true } }
+        convocatorias: { include: { vacancies: true, evaluations: true } },
+        accesos: { orderBy: { createdAt: 'desc' } }
       }
     });
     if (!user) throw new NotFoundException('No se encuentra la cuenta.');

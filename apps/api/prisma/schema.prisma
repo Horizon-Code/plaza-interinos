@@ -29,6 +29,24 @@ model User {
   profiles      Profile[]
   convocatorias Convocatoria[]
   payments      Payment[]
+  accesos       Acceso[]
+}
+
+/// Historial de entradas: quién ha usado la aplicación y cuándo.
+/// `tipo` es 'google' (acaba de iniciar sesión) o 'sesion' (vuelve con la
+/// sesión guardada; se apunta como mucho una vez cada 30 minutos por persona).
+/// Se borra solo pasados 90 días y cae con la cuenta: la IP es dato personal.
+model Acceso {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo      String
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
 }
 
 /// Enlace de acceso enviado por correo. Guarda solo el hash del token: si
