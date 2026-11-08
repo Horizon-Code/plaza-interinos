@@ -1,0 +1,61 @@
+# Despliega la API en Fly cada vez que entra en `main` un cambio que le afecta.
+# La web ya la despliega Cloudflare Pages por su cuenta.
+#
+# Necesita en GitHub (Settings → Secrets and variables → Actions):
+#   FLY_API_TOKEN  → `fly tokens create deploy -a plazainterinos-api`
+#   ADMIN_EMAILS   → (opcional) correos que ven el historial de accesos, separados por comas
+#
+# Las migraciones de Prisma se aplican solas al arrancar (ver apps/api/Dockerfile).
+name: Desplegar API en Fly
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/api/**'
+      - 'packages/core/**'
+      - 'infra/fly.toml'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.npmrc'
+      - '.dockerignore'
+      - '.github/workflows/deploy-api.yml'
+  workflow_dispatch:
+
+# Si se fusionan dos PR seguidas, se despliega la última y no se pisan.
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comprobar que existe FLY_API_TOKEN
+        if: ${{ env.FLY_API_TOKEN == '' }}
+        run: |
+          echo "::error::Falta el secreto FLY_API_TOKEN en GitHub (fly tokens create deploy -a plazainterinos-api)"
+          exit 1
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Sincronizar ADMIN_EMAILS
+        if: ${{ env.ADMIN_EMAILS != '' }}
+        # --stage: se aplica con el despliegue de abajo, sin reiniciar dos veces.
+        run: flyctl secrets set ADMIN_EMAILS="$ADMIN_EMAILS" --app plazainterinos-api --stage
+
+      - name: Desplegar
+        run: flyctl deploy --config infra/fly.toml --remote-only
+
+      - name: Comprobar que responde
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fsS https://plazainterinos-api.fly.dev/api/health; then exit 0; fi
+            sleep 6
+          done
+          echo "La API no responde tras el despliegue" && exit 1
