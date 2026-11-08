@@ -4,6 +4,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { GoogleService } from './google.service';
 import { AuthGuard } from './auth.guard';
+import { AccesosService } from './accesos.service';
 
 @Global()
 @Module({
@@ -17,7 +18,7 @@ import { AuthGuard } from './auth.guard';
     })
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthGuard, GoogleService],
-  exports: [AuthGuard, JwtModule]
+  providers: [AuthService, AuthGuard, GoogleService, AccesosService],
+  exports: [AuthGuard, AccesosService, JwtModule]
 })
 export class AuthModule {}
